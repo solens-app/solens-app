@@ -1,0 +1,17 @@
+$ next dev
+⚠ Port 3000 is in use by an unknown process, using available port 3001 instead.
+▲ Next.js 16.2.3 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://10.244.1.54:3001
+- Environments: .env
+✓ Ready in 9.2s
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          3511106
+- Dir:          /workspace/proj/solens-bot
+- Log:          .next/dev/logs/next-development.log
+
+Run kill 3511106 to stop it.
+[?25h
+error: script "dev" exited with code 1

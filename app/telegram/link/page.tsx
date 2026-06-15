@@ -140,7 +140,7 @@ function TelegramLinkInner() {
   };
 
   if (!ready) {
-    return <div className="p-6 text-zinc-300">Loading...</div>;
+    return <div className="p-6 text-text-secondary">Loading…</div>;
   }
 
   const identityLabel = identity
@@ -152,23 +152,29 @@ function TelegramLinkInner() {
     : null;
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-xl border border-white/10 bg-zinc-900 p-6 space-y-4">
-        <h1 className="text-xl font-semibold">Link Telegram to Solens</h1>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-base px-4 text-text-primary">
+      <div className="glow-violet pointer-events-none absolute inset-x-0 bottom-0 h-[360px]" />
+      <div className="relative w-full max-w-md space-y-5 rounded-2xl border border-subtle bg-surface p-6 shadow-2xl">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-600 text-base font-extrabold lowercase text-white">
+            s
+          </div>
+          <h1 className="text-lg font-semibold">Link Telegram to Solens</h1>
+        </div>
 
         {identityError ? (
-          <div className="rounded-lg border border-rose-500/40 bg-rose-950/40 p-3 text-sm text-rose-200">
+          <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
             {identityError}
           </div>
         ) : !identity ? (
-          <p className="text-sm text-zinc-400">Validating link token...</p>
+          <p className="text-sm text-text-secondary">Validating link token…</p>
         ) : (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-950/30 p-3 text-sm space-y-2">
-            <div className="font-semibold text-amber-200">
+          <div className="space-y-2 rounded-xl border border-violet-300/40 bg-elevated/50 p-3 text-sm">
+            <div className="font-semibold text-violet-200">
               You are about to link this Telegram identity:
             </div>
-            <div className="font-mono text-zinc-100 break-all">{identityLabel}</div>
-            <div className="text-xs text-amber-200/80">
+            <div className="break-all font-mono text-white">{identityLabel}</div>
+            <div className="text-xs text-text-secondary">
               After linking, this Telegram chat will be able to request transactions
               that are signed by your Solens wallet. Only continue if this is your
               own Telegram account. If a third party sent you this link, close this
@@ -180,32 +186,32 @@ function TelegramLinkInner() {
         {!authenticated ? (
           <button
             onClick={login}
-            className="w-full px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium"
+            className="w-full rounded-lg bg-violet-500 px-4 py-2.5 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400 disabled:opacity-50"
             disabled={!identity}
           >
             Login With Privy
           </button>
         ) : (
           <>
-            <div className="text-sm text-zinc-300">
+            <div className="text-sm text-text-secondary">
               Wallet:{" "}
-              <span className="font-mono text-zinc-100">
-                {walletAddress ?? (walletError ? "error" : "loading...")}
+              <span className="font-mono text-white">
+                {walletAddress ?? (walletError ? "error" : "loading…")}
               </span>
             </div>
             {walletError && (
-              <div className="text-xs text-rose-400">{walletError}</div>
+              <div className="text-xs text-danger">{walletError}</div>
             )}
-            <label className="flex items-start gap-2 text-xs text-zinc-300">
+            <label className="flex items-start gap-2 text-xs text-text-secondary">
               <input
                 type="checkbox"
-                className="mt-0.5"
+                className="mt-0.5 accent-[var(--violet-500)]"
                 checked={acknowledged}
                 onChange={(e) => setAcknowledged(e.target.checked)}
                 disabled={!identity}
               />
               <span>
-                I confirm that <span className="font-mono">{identityLabel ?? "(unknown)"}</span>{" "}
+                I confirm that <span className="font-mono text-white">{identityLabel ?? "(unknown)"}</span>{" "}
                 is my own Telegram account and I want to bind it to my Solens wallet.
               </span>
             </label>
@@ -217,15 +223,15 @@ function TelegramLinkInner() {
                 !identity ||
                 !acknowledged
               }
-              className="w-full px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-sm font-medium"
+              className="w-full rounded-lg bg-violet-500 px-4 py-2.5 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400 disabled:opacity-50"
             >
-              {status === "loading" ? "Linking..." : "Confirm Telegram Link"}
+              {status === "loading" ? "Linking…" : "Confirm Telegram Link"}
             </button>
           </>
         )}
 
         {status !== "idle" && (
-          <p className={`text-sm ${status === "success" ? "text-emerald-400" : "text-rose-400"}`}>
+          <p className={`text-sm ${status === "success" ? "text-success" : "text-danger"}`}>
             {message}
           </p>
         )}
@@ -238,8 +244,8 @@ export default function TelegramLinkPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-300">
-          Loading...
+        <div className="flex min-h-screen items-center justify-center bg-base text-text-secondary">
+          Loading…
         </div>
       }
     >

@@ -5,7 +5,7 @@ import ChatArea from "./components/ChatArea";
 
 export default function Home() {
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden bg-base text-text-primary">
       <Sidebar />
       <ChatArea />
     </div>

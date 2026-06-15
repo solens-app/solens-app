@@ -1,37 +1,140 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ *
+ * Solens design tokens — derived from the Figma "Solens - UI Design"
+ * brand kit + AI Chat Screen. Palette, surfaces and typography.
+ * ------------------------------------------------------------------ */
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Surfaces */
+  --bg-base: #070512;
+  --bg-surface: #120f28;
+  --bg-elevated: #1e1a42;
+  --border-subtle: #1e1a42;
+
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #d6d1f0;
+  --text-on-brand: #ffffff;
+
+  /* Violet brand scale */
+  --violet-50: #fcfbff;
+  --violet-100: #e4ccff;
+  --violet-200: #cba6ff;
+  --violet-300: #af7eff;
+  --violet-400: #9a4efd;
+  --violet-500: #7005fc;
+  --violet-600: #5902ca;
+
+  /* Semantic */
+  --action-primary: #7005fc;
+  --success: #2bd576;
+  --danger: #fb6f7e;
+
+  /* App defaults */
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
 }
 
+/* Map tokens into Tailwind v4 so utilities like bg-surface, text-violet-500,
+ * border-subtle become available. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-base: var(--bg-base);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-subtle: var(--border-subtle);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-on-brand: var(--text-on-brand);
+
+  --color-violet-50: var(--violet-50);
+  --color-violet-100: var(--violet-100);
+  --color-violet-200: var(--violet-200);
+  --color-violet-300: var(--violet-300);
+  --color-violet-400: var(--violet-400);
+  --color-violet-500: var(--violet-500);
+  --color-violet-600: var(--violet-600);
+
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background: var(--bg-base);
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Gradient brand text — violet → white → violet (matches hero heading) */
+.text-gradient-brand {
+  background-image: linear-gradient(
+    90deg,
+    var(--violet-100) 0%,
+    #ffffff 29%,
+    var(--violet-500) 73%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Elevated card depth — replaces hard borders with layered shadow.
+ * A faint inset top highlight defines the top edge without an outline. */
+.card-shadow {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.035),
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 18px 40px -18px rgba(0, 0, 0, 0.7);
+}
+.card-shadow-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-shadow-hover:hover {
+  box-shadow:
+    inset 0 1px 0 0 rgba(175, 126, 255, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.45),
+    0 22px 48px -18px rgba(112, 5, 252, 0.4);
+}
+
+/* Soft violet radial glow used behind the chat hero / input */
+.glow-violet {
+  background: radial-gradient(
+    50% 50% at 50% 100%,
+    rgba(112, 5, 252, 0.35) 0%,
+    rgba(112, 5, 252, 0) 100%
+  );
+  pointer-events: none;
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(175, 126, 255, 0.18);
   border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(175, 126, 255, 0.32);
+}
+
+/* Typing dots */
+@keyframes solens-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-3px); opacity: 1; }
+}
+.typing-dot {
+  animation: solens-bounce 1.2s infinite ease-in-out;
 }

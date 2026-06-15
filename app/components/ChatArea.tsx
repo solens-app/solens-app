@@ -267,17 +267,34 @@ function summarizeAction(action: MessageAction): string {
   }
 }
 
-const suggestedPrompts = [
-  "What is my wallet address?",
-  "Show my SOL balance",
-  "Show all my token holdings",
-  "What's the price of SOL?",
-  "Swap 0.1 SOL for USDC",
-  "Search Meteora pools for SOL-USDC",
-  "Show trending crypto prediction markets",
-  "Show my NFTs",
-  "Show me Mad Lads NFT collection",
+// Suggestion chips for the empty/hero state — mirrors the Figma "See what can
+// Solens do" list, scoped to capabilities the backend actually supports.
+const suggestedPrompts: { text: string; highlight?: boolean }[] = [
+  { text: "How should I invest $100?" },
+  { text: "Analyze my portfolio and suggest investments" },
+  { text: "Show my portfolio, with total balance", highlight: true },
+  { text: "Show me the trending memecoins right now" },
+  { text: "What's the price of SOL?" },
+  { text: "Swap 0.1 SOL for USDC" },
+  { text: "Search Meteora pools for SOL-USDC" },
+  { text: "Show my NFTs" },
 ];
+
+function SolensAvatar() {
+  return (
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-600 text-sm font-extrabold lowercase text-white">
+      s
+    </div>
+  );
+}
+
+function SendArrow({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0-6 6m6-6 6 6" />
+    </svg>
+  );
+}
 
 export default function ChatArea() {
   const { ready, authenticated, login } = usePrivy();
@@ -460,97 +477,115 @@ export default function ChatArea() {
 
   if (!ready) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="animate-pulse text-zinc-500">Loading...</div>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="animate-pulse text-text-secondary">Loading…</div>
       </div>
     );
   }
 
+  const isEmpty = messages.length === 0;
+
   return (
-    <div className="flex-1 flex flex-col h-full">
-      <header className="flex items-center justify-between px-6 py-3 border-b border-white/10">
-        <div />
+    <div className="relative flex h-full flex-1 flex-col bg-base">
+      {/* Topbar */}
+      <header className="flex items-center justify-end border-b border-subtle px-6 py-2.5">
         {!authenticated ? (
           <button
             onClick={login}
-            className="px-4 py-1.5 text-sm bg-violet-600 hover:bg-violet-500 rounded-lg transition-colors"
+            className="rounded-lg bg-violet-500 px-3.5 py-2 text-xs font-semibold text-on-brand transition-colors hover:bg-violet-400"
           >
             Login
           </button>
-        ) : (
-          <div className="flex items-center gap-3">
-            {walletAddress ? (
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(walletAddress);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-                className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 font-mono transition-colors"
-                title="Copy address"
-              >
-                {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
-                {copied ? (
-                  <svg className="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                )}
-              </button>
-            ) : walletError ? (
-              <span className="text-xs text-rose-400" title={walletError}>wallet error</span>
+        ) : walletAddress ? (
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(walletAddress);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs text-text-secondary transition-colors hover:text-white"
+            title="Copy address"
+          >
+            {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+            {copied ? (
+              <svg className="h-3.5 w-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
             ) : (
-              <span className="text-xs text-zinc-500 animate-pulse">loading wallet...</span>
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
             )}
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-          </div>
+          </button>
+        ) : walletError ? (
+          <span className="text-xs text-danger" title={walletError}>wallet error</span>
+        ) : (
+          <span className="animate-pulse text-xs text-text-secondary">loading wallet…</span>
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto px-6 py-8">
-        {messages.length === 0 ? (
-          <div className="max-w-2xl mx-auto">
-            <h2 className="text-lg text-zinc-400 mb-6">Try an example:</h2>
-            <div className="space-y-2">
-              {suggestedPrompts.map((prompt) => (
+      {/* Bottom violet glow */}
+      <div className="glow-violet pointer-events-none absolute inset-x-0 bottom-0 h-[360px]" />
+
+      {/* Scroll area */}
+      <div className="relative flex-1 overflow-y-auto px-6 py-10">
+        {isEmpty ? (
+          <div className="mx-auto w-full max-w-3xl">
+            <div className="flex flex-col gap-3">
+              <h1 className="text-gradient-brand text-[32px] font-semibold leading-tight">
+                Welcome to Solens
+                <br />
+                The simplest way to trade crypto!
+              </h1>
+              <p className="max-w-xl text-sm leading-relaxed text-text-secondary">
+                New to crypto? You can ask me anything. Remember I&apos;m an AI, I don&apos;t judge.
+                Whenever you&apos;re ready, I&apos;m here to help you do transactions with ease and confidence.
+              </p>
+            </div>
+
+            <div className="mt-7 flex flex-col gap-2 rounded-2xl bg-surface p-3">
+              <p className="px-1 text-sm text-text-secondary">See what Solens can do:</p>
+              {suggestedPrompts.map(({ text, highlight }) => (
                 <button
-                  key={prompt}
-                  onClick={() => handleSend(prompt)}
-                  className="block w-full text-left px-4 py-2.5 text-sm text-violet-400 hover:text-violet-300 hover:bg-white/5 rounded-lg transition-colors"
+                  key={text}
+                  onClick={() => handleSend(text)}
+                  className={`rounded-xl px-4 py-2.5 text-left text-sm text-white transition-colors hover:bg-elevated ${
+                    highlight ? "border border-violet-300 bg-elevated/40" : "bg-elevated/20"
+                  }`}
                 >
-                  {prompt}
+                  {text}
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto space-y-4">
+          <div className="mx-auto w-full max-w-3xl space-y-5">
             {messages.map((msg) => (
               <div key={msg.id}>
-                <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`flex items-start gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {msg.role === "assistant" && <SolensAvatar />}
                   <div
-                    className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm overflow-hidden break-words ${
-                      msg.role === "user" ? "bg-violet-600 text-white" : "bg-zinc-800 text-zinc-200"
+                    className={`max-w-[82%] overflow-hidden break-words rounded-2xl px-4 py-2.5 text-sm ${
+                      msg.role === "user"
+                        ? "bg-violet-500 text-white"
+                        : "border border-subtle bg-surface text-text-primary"
                     }`}
                   >
                     {msg.role === "assistant" ? (
                       <Markdown
                         components={{
                           p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                          ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
+                          strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                          ul: ({ children }) => <ul className="mb-2 ml-4 list-disc">{children}</ul>,
+                          ol: ({ children }) => <ol className="mb-2 ml-4 list-decimal">{children}</ol>,
                           li: ({ children }) => <li className="mb-0.5">{children}</li>,
                           a: ({ href, children }) => (
-                            <a href={href} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 underline break-all">
+                            <a href={href} target="_blank" rel="noopener noreferrer" className="break-all text-violet-300 underline hover:text-violet-200">
                               {children}
                             </a>
                           ),
                           code: ({ children }) => (
-                            <code className="bg-zinc-700 px-1 py-0.5 rounded text-xs break-all">{children}</code>
+                            <code className="break-all rounded bg-elevated px-1 py-0.5 text-xs">{children}</code>
                           ),
                         }}
                       >
@@ -561,32 +596,26 @@ export default function ChatArea() {
                     )}
                   </div>
                 </div>
+
                 {msg.action && !msg.action.cancelled && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <button
-                      onClick={() => setConfirmingMsg(msg)}
-                      disabled={actionPending === msg.id}
-                      className="px-4 py-2 text-sm font-medium bg-green-600 hover:bg-green-500 disabled:bg-green-800 disabled:cursor-not-allowed rounded-xl transition-colors"
-                    >
-                      {actionPending === msg.id ? "Signing..." : `Confirm: ${summarizeAction(msg.action)}`}
-                    </button>
-                    <button
-                      onClick={() => handleActionCancel(msg.id, msg.action!.type)}
-                      disabled={actionPending === msg.id}
-                      className="px-4 py-2 text-sm font-medium bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
-                    >
-                      Cancel
-                    </button>
+                  <div className="ml-[38px]">
+                    <ActionCard
+                      action={msg.action}
+                      pending={actionPending === msg.id}
+                      onConfirm={() => setConfirmingMsg(msg)}
+                      onCancel={() => handleActionCancel(msg.id, msg.action!.type)}
+                    />
                   </div>
                 )}
+
                 {msg.quickReplies && msg.quickReplies.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2 max-w-[80%]">
+                  <div className="ml-[38px] mt-2.5 flex max-w-[82%] flex-wrap gap-2">
                     {msg.quickReplies.map((qr, i) => (
                       <button
                         key={i}
                         onClick={() => handleSend(qr.prompt)}
                         disabled={isLoading}
-                        className="px-3 py-1.5 text-xs font-medium bg-white/5 hover:bg-violet-600/20 border border-white/10 hover:border-violet-500/40 text-zinc-300 hover:text-violet-300 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="rounded-lg border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-all hover:border-violet-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {qr.label}
                       </button>
@@ -596,12 +625,13 @@ export default function ChatArea() {
               </div>
             ))}
             {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-zinc-800 text-zinc-200 px-4 py-2.5 rounded-2xl text-sm">
+              <div className="flex items-start justify-start gap-2.5">
+                <SolensAvatar />
+                <div className="rounded-2xl border border-subtle bg-surface px-4 py-3 text-sm">
                   <span className="inline-flex gap-1">
-                    <span className="animate-bounce">.</span>
-                    <span className="animate-bounce [animation-delay:0.1s]">.</span>
-                    <span className="animate-bounce [animation-delay:0.2s]">.</span>
+                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300" />
+                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300 [animation-delay:0.15s]" />
+                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300 [animation-delay:0.3s]" />
                   </span>
                 </div>
               </div>
@@ -611,6 +641,7 @@ export default function ChatArea() {
         )}
       </div>
 
+      {/* Confirm modal */}
       {confirmingMsg?.action && (() => {
         const action = confirmingMsg.action;
         const txCount = actionTransactionCount(action);
@@ -618,73 +649,66 @@ export default function ChatArea() {
         const feeSol = feeLamports / 1_000_000_000;
         const details = actionDetails(action);
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="w-full max-w-md mx-4 rounded-2xl border border-white/10 bg-zinc-900 p-6 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="mx-4 w-full max-w-md space-y-4 rounded-2xl border border-subtle bg-surface p-6 shadow-2xl">
               <div>
-                <div className="text-xs uppercase tracking-wide text-zinc-500 mb-1">
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-violet-300">
                   {ACTION_LABELS[action.type]}
                 </div>
-                <div className="text-base text-zinc-100">{summarizeAction(action)}</div>
+                <div className="text-base text-white">{summarizeAction(action)}</div>
               </div>
 
-              <dl className="rounded-lg border border-white/10 bg-zinc-950 divide-y divide-white/5 text-sm">
+              <dl className="divide-y divide-subtle rounded-xl border border-subtle bg-base text-sm">
                 {details.map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-start justify-between gap-3 px-3 py-2"
-                  >
-                    <dt className="text-zinc-500">{row.label}</dt>
-                    <dd
-                      className={`text-zinc-100 text-right break-all ${row.mono ? "font-mono text-xs" : ""}`}
-                    >
+                  <div key={row.label} className="flex items-start justify-between gap-3 px-3 py-2">
+                    <dt className="text-text-secondary">{row.label}</dt>
+                    <dd className={`break-all text-right text-white ${row.mono ? "font-mono text-xs" : ""}`}>
                       {row.value}
                     </dd>
                   </div>
                 ))}
                 <div className="flex items-start justify-between gap-3 px-3 py-2">
-                  <dt className="text-zinc-500">Transactions</dt>
-                  <dd className="text-zinc-100">{txCount}</dd>
+                  <dt className="text-text-secondary">Transactions</dt>
+                  <dd className="text-white">{txCount}</dd>
                 </div>
                 <div className="flex items-start justify-between gap-3 px-3 py-2">
-                  <dt className="text-zinc-500">Network fee (est.)</dt>
-                  <dd className="text-zinc-100">
+                  <dt className="text-text-secondary">Network fee (est.)</dt>
+                  <dd className="text-white">
                     ~{feeSol.toFixed(6)} SOL{" "}
-                    <span className="text-zinc-500">({feeLamports.toLocaleString()} lamports)</span>
+                    <span className="text-text-secondary">({feeLamports.toLocaleString()} lamports)</span>
                   </dd>
                 </div>
                 <div className="flex items-start justify-between gap-3 px-3 py-2">
-                  <dt className="text-zinc-500">Network</dt>
-                  <dd className="text-zinc-100">Solana mainnet</dd>
+                  <dt className="text-text-secondary">Network</dt>
+                  <dd className="text-white">Solana mainnet</dd>
                 </div>
                 <div className="flex items-start justify-between gap-3 px-3 py-2">
-                  <dt className="text-zinc-500">Signer</dt>
-                  <dd className="text-zinc-100 font-mono text-xs">
-                    {walletAddress
-                      ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-6)}`
-                      : "—"}
+                  <dt className="text-text-secondary">Signer</dt>
+                  <dd className="font-mono text-xs text-white">
+                    {walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-6)}` : "—"}
                   </dd>
                 </div>
               </dl>
 
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-text-secondary">
                 Network fee is the base Solana cost (5,000 lamports per signature). Priority fees and
                 program-specific costs (e.g. account creation rent) may add to this.
               </p>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-1">
                 <button
                   onClick={() => setConfirmingMsg(null)}
                   disabled={actionPending === confirmingMsg.id}
-                  className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+                  className="rounded-lg bg-elevated px-4 py-2 text-sm text-text-secondary transition-colors hover:text-white disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => executeConfirmedAction(confirmingMsg)}
                   disabled={actionPending === confirmingMsg.id}
-                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 rounded-lg transition-colors disabled:opacity-50"
+                  className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400 disabled:opacity-50"
                 >
-                  {actionPending === confirmingMsg.id ? "Signing..." : "Confirm"}
+                  {actionPending === confirmingMsg.id ? "Signing…" : "Confirm"}
                 </button>
               </div>
             </div>
@@ -692,9 +716,10 @@ export default function ChatArea() {
         );
       })()}
 
-      <div className="px-6 pb-6">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-end gap-2 bg-zinc-800/50 border border-white/10 rounded-xl px-4 py-3">
+      {/* Composer */}
+      <div className="relative px-6 pb-6">
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="flex items-end gap-2 rounded-2xl border border-subtle bg-surface px-3 py-2.5 focus-within:border-violet-300">
             <textarea
               ref={textareaRef}
               value={input}
@@ -709,26 +734,71 @@ export default function ChatArea() {
                   handleSend();
                 }
               }}
-              placeholder={
-                authenticated
-                  ? "Ask me anything about crypto... (Shift+Enter for new line)"
-                  : "Login to get started..."
-              }
+              placeholder={authenticated ? "Ask anything about crypto…" : "Login to get started…"}
               disabled={!authenticated || isLoading}
               rows={1}
-              className="flex-1 bg-transparent outline-none text-sm text-white placeholder-zinc-500 resize-none max-h-[150px]"
+              className="max-h-[150px] flex-1 resize-none self-center bg-transparent px-1 text-sm text-white placeholder-text-secondary/70 outline-none disabled:cursor-not-allowed"
             />
             <button
               onClick={() => handleSend()}
               disabled={!authenticated || !input.trim() || isLoading}
-              className="p-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-violet-500 transition-opacity hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Send"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14m-7-7l7 7-7 7" />
-              </svg>
+              <SendArrow className="h-4 w-4" />
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionCard({
+  action,
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  action: MessageAction;
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const details = actionDetails(action);
+  return (
+    <div className="mt-2.5 max-w-[82%] overflow-hidden rounded-2xl border border-subtle bg-surface">
+      <div className="flex items-center justify-between border-b border-subtle px-4 py-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-300">
+          {ACTION_LABELS[action.type]}
+        </span>
+        <span className="text-xs text-text-secondary">Review &amp; confirm</span>
+      </div>
+      <dl className="divide-y divide-subtle/60 px-4 py-1 text-sm">
+        {details.map((row) => (
+          <div key={row.label} className="flex items-start justify-between gap-3 py-2">
+            <dt className="text-text-secondary">{row.label}</dt>
+            <dd className={`break-all text-right text-white ${row.mono ? "font-mono text-xs" : ""}`}>
+              {row.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div className="flex items-center gap-2 px-4 py-3">
+        <button
+          onClick={onConfirm}
+          disabled={pending}
+          className="flex-1 rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {pending ? "Signing…" : "Confirm"}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={pending}
+          className="rounded-lg bg-elevated px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

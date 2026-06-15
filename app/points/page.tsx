@@ -43,6 +43,11 @@ const quests: Quest[] = [
   { category: "VOLUME", ep: "500 EP", title: "Quick Win", desc: "Complete any 2 quests today", highlight: "plain" },
 ];
 
+const tabClass = (active: boolean) =>
+  `pb-3 text-sm transition-colors ${
+    active ? "-mb-px border-b-2 border-violet-400 text-white" : "text-text-secondary/60 hover:text-text-secondary"
+  }`;
+
 export default function PointsPage() {
   const [activeTop, setActiveTop] = useState(topTabs[0]);
   const [activeQuest, setActiveQuest] = useState(questTabs[0]);
@@ -50,37 +55,29 @@ export default function PointsPage() {
   return (
     <AppShell>
       {/* top tabs */}
-      <div className="flex items-center justify-between border-b border-white/10 mb-8">
+      <div className="mb-8 flex items-center justify-between border-b border-subtle">
         <div className="flex items-center gap-8">
           {topTabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTop(tab)}
-              className={`pb-3 text-sm transition-colors ${
-                activeTop === tab
-                  ? "text-white border-b-2 border-white -mb-px"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
+            <button key={tab} onClick={() => setActiveTop(tab)} className={tabClass(activeTop === tab)}>
               {tab}
             </button>
           ))}
         </div>
-        <a href="#" className="pb-3 text-sm text-zinc-300 underline underline-offset-2 hover:text-white">
+        <a href="#" className="pb-3 text-sm text-violet-300 underline underline-offset-2 hover:text-violet-200">
           Terms and Conditions
         </a>
       </div>
 
       {/* Level card */}
-      <div className="rounded-3xl border border-white/10 bg-[#0e0e0e] p-8 mb-10">
-        <div className="flex items-center justify-center gap-3 mb-8">
+      <div className="mb-10 rounded-3xl border border-subtle bg-surface p-8">
+        <div className="mb-8 flex items-center justify-center gap-3">
           {tiers.map((tier) => (
             <div
               key={tier.name}
-              className={`grid place-items-center w-16 h-16 rounded-full text-2xl transition-all ${
+              className={`grid h-16 w-16 place-items-center rounded-full text-2xl transition-all ${
                 tier.active
-                  ? "bg-gradient-to-br from-[#9945FF] to-[#7C3AED] shadow-lg shadow-purple-500/30"
-                  : "bg-white/[0.04] grayscale opacity-40"
+                  ? "bg-gradient-to-br from-violet-400 to-violet-600 shadow-lg shadow-violet-500/30"
+                  : "bg-elevated opacity-40 grayscale"
               }`}
               title={tier.name}
             >
@@ -91,69 +88,65 @@ export default function PointsPage() {
 
         <div className="text-center">
           <h2 className="text-2xl font-bold">EP3</h2>
-          <p className="text-zinc-400 mt-1">Level 1 • Seeker</p>
-          <p className="text-5xl font-extrabold mt-4 mb-6">0 EP</p>
-          <div className="h-3 rounded-full bg-white/5 overflow-hidden">
-            <div className="h-full w-0 bg-gradient-to-r from-[#9945FF] to-[#14F195]" />
+          <p className="mt-1 text-text-secondary">Level 1 • Seeker</p>
+          <p className="mb-6 mt-4 text-5xl font-extrabold text-gradient-brand">0 EP</p>
+          <div className="h-3 overflow-hidden rounded-full bg-elevated">
+            <div className="h-full w-0 bg-gradient-to-r from-violet-400 to-violet-600" />
           </div>
-          <p className="text-left text-sm text-zinc-500 mt-2">Need to Earn 16,000 EP to Next level</p>
+          <p className="mt-2 text-left text-sm text-text-secondary/70">Need to earn 16,000 EP to reach the next level</p>
         </div>
       </div>
 
       {/* Invite & Earn */}
-      <div className="rounded-2xl border border-white/10 bg-[#0e0e0e] p-6 mb-10">
-        <div className="flex items-start gap-4 mb-5">
-          <span className="grid place-items-center w-11 h-11 rounded-full bg-white/5">
-            <svg className="w-5 h-5 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="mb-10 rounded-2xl border border-subtle bg-surface p-6">
+        <div className="mb-5 flex items-start gap-4">
+          <span className="grid h-11 w-11 place-items-center rounded-full bg-elevated text-violet-300">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z" />
             </svg>
           </span>
           <div>
             <h3 className="text-lg font-semibold">Invite &amp; Earn</h3>
-            <p className="text-sm text-zinc-500">500 EP per referral + 1000 EP bonus at 5</p>
+            <p className="text-sm text-text-secondary/70">500 EP per referral + 1000 EP bonus at 5</p>
           </div>
         </div>
-        <p className="text-sm text-zinc-500 mb-2">Your referral code</p>
-        <div className="flex items-center justify-between rounded-xl bg-[#161616] border border-white/10 px-4 py-3 mb-4">
-          <span className="font-medium tracking-wide">6KUGVZ</span>
-          <button className="text-zinc-400 hover:text-white" aria-label="Copy">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <p className="mb-2 text-sm text-text-secondary/70">Your referral code</p>
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-subtle bg-elevated px-4 py-3">
+          <span className="font-medium tracking-wide text-violet-200">6KUGVZ</span>
+          <button className="text-text-secondary transition-colors hover:text-white" aria-label="Copy">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <button className="rounded-xl bg-[#161616] border border-white/10 py-3 text-sm font-medium hover:bg-white/5 transition-colors">
+          <button className="rounded-xl border border-subtle bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-white">
             𝕏 Share on X
           </button>
-          <button className="rounded-xl bg-[#161616] border border-white/10 py-3 text-sm font-medium hover:bg-white/5 transition-colors">
+          <button className="rounded-xl border border-subtle bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-white">
             ↗ Share it
           </button>
         </div>
       </div>
 
       {/* Quest tabs */}
-      <div className="flex items-center gap-7 border-b border-white/10 mb-6 overflow-x-auto">
+      <div className="mb-6 flex items-center gap-7 overflow-x-auto border-b border-subtle">
         {questTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveQuest(tab)}
-            className={`pb-3 text-sm whitespace-nowrap transition-colors ${
-              activeQuest === tab
-                ? "text-white border-b-2 border-white -mb-px"
-                : "text-zinc-500 hover:text-zinc-300"
-            }`}
+            className={`${tabClass(activeQuest === tab)} whitespace-nowrap`}
           >
             {tab}
           </button>
         ))}
-        <span className="text-zinc-500">···</span>
+        <span className="text-text-secondary/60">···</span>
       </div>
 
-      <h3 className="text-2xl font-bold mb-1">{activeQuest}</h3>
-      <p className="text-sm text-zinc-500 mb-6">Refreshes Everyday 00:00 UTC</p>
+      <h3 className="mb-1 text-2xl font-bold">{activeQuest}</h3>
+      <p className="mb-6 text-sm text-text-secondary/70">Refreshes everyday 00:00 UTC</p>
 
-      <div className="grid sm:grid-cols-2 gap-5">
+      <div className="grid gap-5 sm:grid-cols-2">
         {quests.map((q) => (
           <QuestCard key={q.title} quest={q} />
         ))}
@@ -166,45 +159,39 @@ function QuestCard({ quest }: { quest: Quest }) {
   const featured = quest.highlight === "purple" || quest.highlight === "green" || quest.highlight === "plain";
 
   if (featured) {
-    const bg =
-      quest.highlight === "purple"
-        ? "bg-gradient-to-br from-[#1a1024] to-[#0e0e0e]"
-        : quest.highlight === "green"
-          ? "bg-gradient-to-br from-[#0d1a14] to-[#0e0e0e]"
-          : "bg-[#0e0e0e]";
-    const badge =
-      quest.highlight === "purple"
-        ? "bg-[#9945FF]/15 text-[#c4a3ff]"
-        : quest.highlight === "green"
-          ? "bg-[#14F195]/15 text-[#7ef0c0]"
-          : "bg-white/10 text-zinc-200";
+    const accent =
+      quest.highlight === "green"
+        ? { ring: "from-success/80 to-success/40", badge: "bg-success/15 text-success" }
+        : { ring: "from-violet-400 to-violet-600", badge: "bg-violet-500/15 text-violet-200" };
     return (
-      <div className={`rounded-2xl border border-white/10 ${bg} p-5 flex flex-col items-center text-center`}>
-        <div className="w-full flex items-center justify-between mb-8">
-          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${badge}`}>{quest.category}</span>
-          <span className="text-sm font-bold px-3 py-1 rounded-full bg-black/40 border border-white/10">{quest.ep}</span>
+      <div className="flex flex-col items-center rounded-2xl border border-subtle bg-surface p-5 text-center">
+        <div className="mb-8 flex w-full items-center justify-between">
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${accent.badge}`}>{quest.category}</span>
+          <span className="rounded-full border border-subtle bg-elevated px-3 py-1 text-sm font-bold">{quest.ep}</span>
         </div>
-        <span className="grid place-items-center w-16 h-16 rounded-full bg-white text-2xl mb-4">
-          {quest.highlight === "purple" ? "↗" : quest.highlight === "green" ? "◎" : "🏆"}
+        <span className={`mb-4 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br ${accent.ring}`}>
+          <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
         </span>
         <h4 className="font-semibold">{quest.title}</h4>
-        <p className="text-sm text-zinc-500 mt-1">{quest.desc}</p>
+        <p className="mt-1 text-sm text-text-secondary/70">{quest.desc}</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#0e0e0e] p-5">
-      <div className="flex items-center justify-between mb-6">
-        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#9945FF]/15 text-[#c4a3ff]">
-          ↗ {quest.category}
+    <div className="rounded-2xl border border-subtle bg-surface p-5">
+      <div className="mb-6 flex items-center justify-between">
+        <span className="rounded-full bg-violet-500/15 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
+          {quest.category}
         </span>
-        <span className="text-sm font-bold px-3 py-1 rounded-full bg-black/40 border border-white/10">{quest.ep}</span>
+        <span className="rounded-full border border-subtle bg-elevated px-3 py-1 text-sm font-bold">{quest.ep}</span>
       </div>
       <h4 className="font-semibold">{quest.title}</h4>
-      <p className="text-sm text-zinc-500 mt-1 mb-6">{quest.desc}</p>
-      <div className="h-1 rounded-full bg-white/5 mb-3" />
-      <div className="flex items-center justify-between text-xs text-zinc-500">
+      <p className="mb-6 mt-1 text-sm text-text-secondary/70">{quest.desc}</p>
+      <div className="mb-3 h-1 rounded-full bg-elevated" />
+      <div className="flex items-center justify-between text-xs text-text-secondary/60">
         <span>{quest.resets}</span>
         <span>{quest.progress}</span>
       </div>

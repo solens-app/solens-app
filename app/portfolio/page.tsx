@@ -49,8 +49,8 @@ export default function PortfolioPage() {
       {/* Tokens */}
       <section className="mb-12">
         <h2 className="mb-3 text-lg font-semibold">Tokens</h2>
-        <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
-          <div className="grid grid-cols-[1fr_auto_auto] gap-6 border-b border-subtle bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
+        <div className="overflow-hidden rounded-2xl bg-surface card-shadow">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-6 bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
             <span>Tokens</span>
             <span className="w-40 text-right">Balance ⇅</span>
             <span className="w-28 text-right">Value (USD) ⇅</span>
@@ -87,8 +87,8 @@ export default function PortfolioPage() {
       {/* Positions */}
       <section className="mb-12">
         <h2 className="mb-4 text-2xl font-bold">Positions</h2>
-        <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 border-b border-subtle bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
+        <div className="overflow-hidden rounded-2xl bg-surface card-shadow">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
             <span>Token</span>
             <span>Amount</span>
             <span>Value (USD)</span>
@@ -116,8 +116,8 @@ export default function PortfolioPage() {
       {/* Perp Positions */}
       <section className="mb-12">
         <h2 className="mb-4 text-2xl font-bold">Drift Perp Positions</h2>
-        <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 border-b border-subtle bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
+        <div className="overflow-hidden rounded-2xl bg-surface card-shadow">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
             <span>Tokens</span>
             <span className="text-right">Entry</span>
             <span className="text-right">LTP</span>
@@ -136,7 +136,7 @@ export default function PortfolioPage() {
             <Toggle label="" on={showClosed} onClick={() => setShowClosed(!showClosed)} />
           </div>
         </div>
-        <div className="rounded-2xl border border-subtle bg-surface px-6 py-12 text-center">
+        <div className="rounded-2xl bg-surface card-shadow px-6 py-12 text-center">
           <p className="mb-5 text-text-secondary">
             Initialize prediction market credentials to view your positions and open orders.
           </p>
@@ -152,7 +152,7 @@ export default function PortfolioPage() {
           <h2 className="text-2xl font-bold">Limit Orders</h2>
           <div>
             <div className="mb-1.5 text-xs uppercase tracking-wide text-text-secondary">Filter by Token</div>
-            <button className="flex w-44 items-center justify-between gap-3 rounded-xl border border-subtle bg-elevated px-4 py-2.5 text-sm transition-colors hover:border-violet-300">
+            <button className="flex w-44 items-center justify-between gap-3 rounded-xl border border-transparent bg-elevated px-4 py-2.5 text-sm transition-colors hover:border-violet-300">
               SOL
               <svg className="h-4 w-4 text-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
@@ -177,8 +177,8 @@ export default function PortfolioPage() {
           ))}
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 border-b border-subtle bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
+        <div className="overflow-hidden rounded-2xl bg-surface card-shadow">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
             <span>Order</span>
             <span className="text-right">Price</span>
             <span className="text-right">Filled</span>
@@ -188,7 +188,7 @@ export default function PortfolioPage() {
           <div className="px-6 py-10 text-center">
             <p className="font-semibold">Limit orders aren&apos;t available right now.</p>
             <p className="mt-1 text-sm text-text-secondary/70">No open limit orders.</p>
-            <button className="mt-5 rounded-xl border border-subtle bg-elevated px-5 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-violet-300 hover:text-white">
+            <button className="mt-5 rounded-xl border border-transparent bg-elevated px-5 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-violet-300 hover:text-white">
               Retry
             </button>
           </div>
@@ -198,8 +198,8 @@ export default function PortfolioPage() {
       {/* Activities */}
       <section>
         <h2 className="mb-4 text-2xl font-bold">Activities</h2>
-        <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
-          <div className="grid grid-cols-[1fr_1fr_1fr] gap-4 border-b border-subtle bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
+        <div className="overflow-hidden rounded-2xl bg-surface card-shadow">
+          <div className="grid grid-cols-[1fr_1fr_1fr] gap-4 bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
             <span>Type</span>
             <span>Details</span>
             <span className="text-right">Status</span>

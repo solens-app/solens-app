@@ -16,7 +16,7 @@ export default function TradingArenaPage() {
           <p className="mt-3 text-text-secondary">
             Compete in live trading challenges, climb the leaderboard, and earn rewards.
           </p>
-          <span className="mt-6 inline-block rounded-full border border-subtle bg-surface px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-violet-300">
+          <span className="mt-6 inline-block rounded-full bg-elevated px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-violet-300">
             Coming soon
           </span>
         </div>

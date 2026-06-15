@@ -69,7 +69,7 @@ export default function PointsPage() {
       </div>
 
       {/* Level card */}
-      <div className="mb-10 rounded-3xl border border-subtle bg-surface p-8">
+      <div className="mb-10 rounded-3xl bg-surface card-shadow p-8">
         <div className="mb-8 flex items-center justify-center gap-3">
           {tiers.map((tier) => (
             <div
@@ -98,7 +98,7 @@ export default function PointsPage() {
       </div>
 
       {/* Invite & Earn */}
-      <div className="mb-10 rounded-2xl border border-subtle bg-surface p-6">
+      <div className="mb-10 rounded-2xl bg-surface card-shadow p-6">
         <div className="mb-5 flex items-start gap-4">
           <span className="grid h-11 w-11 place-items-center rounded-full bg-elevated text-violet-300">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -111,7 +111,7 @@ export default function PointsPage() {
           </div>
         </div>
         <p className="mb-2 text-sm text-text-secondary/70">Your referral code</p>
-        <div className="mb-4 flex items-center justify-between rounded-xl border border-subtle bg-elevated px-4 py-3">
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-transparent bg-elevated px-4 py-3">
           <span className="font-medium tracking-wide text-violet-200">6KUGVZ</span>
           <button className="text-text-secondary transition-colors hover:text-white" aria-label="Copy">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -120,10 +120,10 @@ export default function PointsPage() {
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <button className="rounded-xl border border-subtle bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-white">
+          <button className="rounded-xl border border-transparent bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-white">
             𝕏 Share on X
           </button>
-          <button className="rounded-xl border border-subtle bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-white">
+          <button className="rounded-xl border border-transparent bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-white">
             ↗ Share it
           </button>
         </div>
@@ -164,10 +164,10 @@ function QuestCard({ quest }: { quest: Quest }) {
         ? { ring: "from-success/80 to-success/40", badge: "bg-success/15 text-success" }
         : { ring: "from-violet-400 to-violet-600", badge: "bg-violet-500/15 text-violet-200" };
     return (
-      <div className="flex flex-col items-center rounded-2xl border border-subtle bg-surface p-5 text-center">
+      <div className="flex flex-col items-center rounded-2xl bg-surface card-shadow card-shadow-hover p-5 text-center">
         <div className="mb-8 flex w-full items-center justify-between">
           <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${accent.badge}`}>{quest.category}</span>
-          <span className="rounded-full border border-subtle bg-elevated px-3 py-1 text-sm font-bold">{quest.ep}</span>
+          <span className="rounded-full border border-transparent bg-elevated px-3 py-1 text-sm font-bold">{quest.ep}</span>
         </div>
         <span className={`mb-4 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br ${accent.ring}`}>
           <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -181,12 +181,12 @@ function QuestCard({ quest }: { quest: Quest }) {
   }
 
   return (
-    <div className="rounded-2xl border border-subtle bg-surface p-5">
+    <div className="rounded-2xl bg-surface card-shadow card-shadow-hover p-5">
       <div className="mb-6 flex items-center justify-between">
         <span className="rounded-full bg-violet-500/15 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
           {quest.category}
         </span>
-        <span className="rounded-full border border-subtle bg-elevated px-3 py-1 text-sm font-bold">{quest.ep}</span>
+        <span className="rounded-full border border-transparent bg-elevated px-3 py-1 text-sm font-bold">{quest.ep}</span>
       </div>
       <h4 className="font-semibold">{quest.title}</h4>
       <p className="mb-6 mt-1 text-sm text-text-secondary/70">{quest.desc}</p>

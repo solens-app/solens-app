@@ -20,7 +20,7 @@ function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`appearance-none rounded-lg border border-subtle bg-elevated py-2 pl-4 pr-9 text-sm transition-colors focus:border-violet-300 focus:outline-none ${
+        className={`appearance-none rounded-lg border border-transparent bg-elevated py-2 pl-4 pr-9 text-sm transition-colors focus:border-violet-300 focus:outline-none ${
           disabled ? "cursor-not-allowed text-text-secondary/60" : "text-white"
         }`}
       >
@@ -72,7 +72,7 @@ export default function SettingsPage() {
         <h1 className="text-3xl font-bold">Settings</h1>
         <p className="mt-2 mb-8 text-text-secondary">Manage your preferences and account.</p>
 
-        <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
+        <div className="overflow-hidden rounded-2xl bg-surface card-shadow">
           <Row
             icon={
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -118,7 +118,7 @@ export default function SettingsPage() {
             }
             label="Refer & Earn"
             control={
-              <span className="rounded-lg border border-subtle bg-elevated px-3 py-2 text-sm font-medium tracking-wide text-violet-200">
+              <span className="rounded-lg bg-elevated px-3 py-2 text-sm font-medium tracking-wide text-violet-200">
                 6KUGVZ
               </span>
             }

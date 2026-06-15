@@ -54,7 +54,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {showBanner && (
-          <div className="relative flex items-center justify-center border-b border-subtle bg-surface px-4 py-2.5 text-sm">
+          <div className="relative flex items-center justify-center bg-surface px-4 py-2.5 text-sm">
             <span className="flex items-center gap-2 text-text-secondary">
               <span className="text-violet-300">✦</span>
               Level up your game with Solens and unlock new adventures!{" "}
@@ -73,7 +73,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         <header className="flex items-center justify-end gap-3 px-6 py-4 lg:px-10">
-          <div className="hidden items-center rounded-xl border border-subtle bg-surface px-4 py-2.5 text-sm sm:flex">
+          <div className="hidden items-center rounded-xl bg-surface card-shadow px-4 py-2.5 text-sm sm:flex">
             <span className="text-text-secondary">Refer &amp; Earn:&nbsp;</span>
             <span className="font-medium">{REFERRAL_CODE}</span>
           </div>

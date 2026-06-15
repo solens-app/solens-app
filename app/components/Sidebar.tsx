@@ -18,11 +18,6 @@ const Icon = {
       <path strokeLinecap="round" d="M2 7h12" />
     </svg>
   ),
-  trading: (p: IconProps) => (
-    <svg className={p.className} fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth={1.4}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 11h8l-2-2m2 2-2 2M13 5H5l2-2M5 5l2 2" />
-    </svg>
-  ),
   points: (p: IconProps) => (
     <svg className={p.className} fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth={1.4}>
       <path strokeLinecap="round" strokeLinejoin="round" d="m8 2 1.7 3.6 3.8.5-2.8 2.7.7 3.9L8 10.9 4.6 12.7l.7-3.9L2.5 6.1l3.8-.5L8 2Z" />
@@ -67,7 +62,6 @@ const Icon = {
 const navItems = [
   { label: "Home", icon: Icon.home, href: "/" },
   { label: "Portfolio", icon: Icon.portfolio, href: "/portfolio" },
-  { label: "Trading Arena", icon: Icon.trading, href: "/trading-arena" },
   { label: "Points", icon: Icon.points, href: "/points" },
   { label: "Settings", icon: Icon.settings, href: "/settings" },
   { label: "History", icon: Icon.history, href: "/history" },

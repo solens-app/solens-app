@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 type IconProps = { className?: string };
 
@@ -63,12 +65,12 @@ const Icon = {
 } as const;
 
 const navItems = [
-  { label: "Home", icon: Icon.home },
-  { label: "Portfolio", icon: Icon.portfolio },
-  { label: "Trading Arena", icon: Icon.trading },
-  { label: "Points", icon: Icon.points },
-  { label: "Settings", icon: Icon.settings },
-  { label: "History", icon: Icon.history },
+  { label: "Home", icon: Icon.home, href: "/" },
+  { label: "Portfolio", icon: Icon.portfolio, href: "/portfolio" },
+  { label: "Trading Arena", icon: Icon.trading, href: "/trading-arena" },
+  { label: "Points", icon: Icon.points, href: "/points" },
+  { label: "Settings", icon: Icon.settings, href: "/settings" },
+  { label: "History", icon: Icon.history, href: "/history" },
 ] as const;
 
 function Wordmark({ collapsed }: { collapsed: boolean }) {
@@ -90,7 +92,7 @@ function Wordmark({ collapsed }: { collapsed: boolean }) {
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const [active, setActive] = useState("Home");
+  const pathname = usePathname();
 
   return (
     <aside
@@ -112,12 +114,12 @@ export default function Sidebar() {
 
         {/* Nav */}
         <nav className="flex flex-col gap-3 px-4 pt-2">
-          {navItems.map(({ label, icon: ItemIcon }) => {
-            const isActive = active === label;
+          {navItems.map(({ label, icon: ItemIcon, href }) => {
+            const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
-              <button
+              <Link
                 key={label}
-                onClick={() => setActive(label)}
+                href={href}
                 title={collapsed ? label : undefined}
                 className={`group flex items-center gap-2 rounded-lg p-3 text-sm font-medium transition-colors ${
                   isActive
@@ -127,7 +129,7 @@ export default function Sidebar() {
               >
                 <ItemIcon className="h-4 w-4 shrink-0" />
                 {!collapsed && <span className="whitespace-nowrap">{label}</span>}
-              </button>
+              </Link>
             );
           })}
         </nav>

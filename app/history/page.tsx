@@ -6,8 +6,8 @@ export default function HistoryPage() {
   return (
     <AppShell>
       <h1 className="mb-8 text-3xl font-bold">History</h1>
-      <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
-        <div className="grid grid-cols-[1fr_1fr_1fr] gap-4 border-b border-subtle bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
+      <div className="overflow-hidden rounded-2xl bg-surface card-shadow">
+        <div className="grid grid-cols-[1fr_1fr_1fr] gap-4 bg-elevated/40 px-6 py-3 text-xs uppercase tracking-wide text-text-secondary">
           <span>Type</span>
           <span>Details</span>
           <span className="text-right">Status</span>

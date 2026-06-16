@@ -35,6 +35,34 @@
   --foreground: var(--text-primary);
 }
 
+/* Explicit dark (default tokens above already describe dark). */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Light theme — overrides the surface/text tokens and darkens the light end
+ * of the violet scale so accent text stays legible on white. The brand violets
+ * (400–600) used for buttons/gradients are intentionally left unchanged. */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-base: #f5f4fb;
+  --bg-surface: #ffffff;
+  --bg-elevated: #efecf9;
+  --border-subtle: #e7e3f4;
+
+  --text-primary: #1a1430;
+  --text-secondary: #5d5775;
+  --text-on-brand: #ffffff;
+
+  --violet-100: #8b5cf6;
+  --violet-200: #7c3aed;
+  --violet-300: #6d28d9;
+
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+}
+
 /* Map tokens into Tailwind v4 so utilities like bg-surface, text-violet-500,
  * border-subtle become available. */
 @theme inline {
@@ -64,6 +92,27 @@
 html {
   background: var(--bg-base);
   color-scheme: dark;
+}
+
+/* Light-mode depth: drop the dark inset/heavy shadows for soft grey elevation. */
+[data-theme="light"] .card-shadow {
+  box-shadow:
+    0 1px 2px rgba(16, 12, 32, 0.06),
+    0 12px 28px -16px rgba(16, 12, 32, 0.18);
+}
+[data-theme="light"] .card-shadow-hover:hover {
+  box-shadow:
+    0 2px 8px rgba(112, 5, 252, 0.1),
+    0 18px 36px -16px rgba(112, 5, 252, 0.22);
+}
+/* The white middle stop is invisible on a light background — use violets. */
+[data-theme="light"] .text-gradient-brand {
+  background-image: linear-gradient(
+    90deg,
+    var(--violet-600) 0%,
+    var(--violet-400) 50%,
+    var(--violet-600) 100%
+  );
 }
 
 body {

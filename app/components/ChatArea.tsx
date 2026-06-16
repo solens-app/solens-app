@@ -5,801 +5,1086 @@ import { usePrivy, useToken } from "@privy-io/react-auth";
 import Markdown from "react-markdown";
 
 interface QuickReply {
-  label: string;
-  prompt: string;
+    label: string;
+    prompt: string;
 }
 
 interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  action?: MessageAction;
-  quickReplies?: QuickReply[];
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    action?: MessageAction;
+    quickReplies?: QuickReply[];
 }
 
 interface SwapAction {
-  type: "swap";
-  transaction: string;
-  requestId: string;
-  inputToken: string;
-  outputToken: string;
-  amount: number;
-  estimatedOutput: string | null;
-  cancelled?: boolean;
+    type: "swap";
+    transaction: string;
+    requestId: string;
+    inputToken: string;
+    outputToken: string;
+    amount: number;
+    estimatedOutput: string | null;
+    cancelled?: boolean;
 }
 
 interface TransferAction {
-  type: "transfer";
-  transaction: string;
-  assetSymbol: string;
-  amount: number;
-  amountLabel?: string;
-  toAddress: string;
-  cancelled?: boolean;
+    type: "transfer";
+    transaction: string;
+    assetSymbol: string;
+    amount: number;
+    amountLabel?: string;
+    toAddress: string;
+    cancelled?: boolean;
 }
 
 interface AddLiquidityAction {
-  type: "addLiquidity";
-  transactions: string[];
-  poolAddress: string;
-  positionAddress: string;
-  poolName: string;
-  amountX: number;
-  amountY: number;
-  tokenXSymbol: string;
-  tokenYSymbol: string;
-  cancelled?: boolean;
+    type: "addLiquidity";
+    transactions: string[];
+    poolAddress: string;
+    positionAddress: string;
+    poolName: string;
+    amountX: number;
+    amountY: number;
+    tokenXSymbol: string;
+    tokenYSymbol: string;
+    cancelled?: boolean;
 }
 
 interface RemoveLiquidityAction {
-  type: "removeLiquidity";
-  transactions: string[];
-  poolAddress: string;
-  positionAddress: string;
-  cancelled?: boolean;
+    type: "removeLiquidity";
+    transactions: string[];
+    poolAddress: string;
+    positionAddress: string;
+    cancelled?: boolean;
 }
 
 interface LaunchTokenAction {
-  type: "launchToken";
-  transactions: string[];
-  tokenName: string;
-  tokenSymbol: string;
-  tokenMint: string;
-  cancelled?: boolean;
+    type: "launchToken";
+    transactions: string[];
+    tokenName: string;
+    tokenSymbol: string;
+    tokenMint: string;
+    cancelled?: boolean;
 }
 
 interface ClaimFeesAction {
-  type: "claimFees";
-  transactions: string[];
-  tokenMint: string;
-  cancelled?: boolean;
+    type: "claimFees";
+    transactions: string[];
+    tokenMint: string;
+    cancelled?: boolean;
 }
 
 interface PredictionOrderAction {
-  type: "predictionOrder";
-  transaction: string;
-  marketId: string;
-  side: "YES" | "NO";
-  amountUsd: number;
-  contracts: string;
-  orderPubkey: string;
-  marketTitle: string;
-  cancelled?: boolean;
+    type: "predictionOrder";
+    transaction: string;
+    marketId: string;
+    side: "YES" | "NO";
+    amountUsd: number;
+    contracts: string;
+    orderPubkey: string;
+    marketTitle: string;
+    cancelled?: boolean;
 }
 
 interface SellPredictionAction {
-  type: "sellPrediction";
-  transaction: string;
-  positionPubkey: string;
-  marketTitle: string;
-  cancelled?: boolean;
+    type: "sellPrediction";
+    transaction: string;
+    positionPubkey: string;
+    marketTitle: string;
+    cancelled?: boolean;
 }
 
 interface ClaimPredictionAction {
-  type: "claimPrediction";
-  transaction: string;
-  positionPubkey: string;
-  payoutUsd: string;
-  marketTitle: string;
-  cancelled?: boolean;
+    type: "claimPrediction";
+    transaction: string;
+    positionPubkey: string;
+    payoutUsd: string;
+    marketTitle: string;
+    cancelled?: boolean;
 }
 
 interface BuyNFTAction {
-  type: "buyNFT";
-  transaction: string;
-  tokenMint: string;
-  price: number;
-  nftName: string;
-  cancelled?: boolean;
+    type: "buyNFT";
+    transaction: string;
+    tokenMint: string;
+    price: number;
+    nftName: string;
+    cancelled?: boolean;
 }
 
 interface ListNFTAction {
-  type: "listNFT";
-  transaction: string;
-  tokenMint: string;
-  price: number;
-  nftName: string;
-  cancelled?: boolean;
+    type: "listNFT";
+    transaction: string;
+    tokenMint: string;
+    price: number;
+    nftName: string;
+    cancelled?: boolean;
 }
 
 type MessageAction =
-  | TransferAction
-  | SwapAction
-  | AddLiquidityAction
-  | RemoveLiquidityAction
-  | LaunchTokenAction
-  | ClaimFeesAction
-  | PredictionOrderAction
-  | SellPredictionAction
-  | ClaimPredictionAction
-  | BuyNFTAction
-  | ListNFTAction;
+    | TransferAction
+    | SwapAction
+    | AddLiquidityAction
+    | RemoveLiquidityAction
+    | LaunchTokenAction
+    | ClaimFeesAction
+    | PredictionOrderAction
+    | SellPredictionAction
+    | ClaimPredictionAction
+    | BuyNFTAction
+    | ListNFTAction;
 
 const ACTION_LABELS: Record<MessageAction["type"], string> = {
-  transfer: "Transfer",
-  swap: "Swap",
-  addLiquidity: "Add Liquidity",
-  removeLiquidity: "Remove Liquidity",
-  launchToken: "Launch Token",
-  claimFees: "Claim Fees",
-  predictionOrder: "Prediction Order",
-  sellPrediction: "Sell Position",
-  claimPrediction: "Claim Payout",
-  buyNFT: "Buy NFT",
-  listNFT: "List NFT",
+    transfer: "Transfer",
+    swap: "Swap",
+    addLiquidity: "Add Liquidity",
+    removeLiquidity: "Remove Liquidity",
+    launchToken: "Launch Token",
+    claimFees: "Claim Fees",
+    predictionOrder: "Prediction Order",
+    sellPrediction: "Sell Position",
+    claimPrediction: "Claim Payout",
+    buyNFT: "Buy NFT",
+    listNFT: "List NFT",
 };
 
 type DetailRow = { label: string; value: string; mono?: boolean };
 
 function actionTransactionCount(action: MessageAction): number {
-  if ("transactions" in action && Array.isArray(action.transactions)) {
-    return action.transactions.length;
-  }
-  if ("transaction" in action && typeof action.transaction === "string") {
-    return 1;
-  }
-  return 0;
+    if ("transactions" in action && Array.isArray(action.transactions)) {
+        return action.transactions.length;
+    }
+    if ("transaction" in action && typeof action.transaction === "string") {
+        return 1;
+    }
+    return 0;
 }
 
 function shortAddress(a: string): string {
-  return a.length > 12 ? `${a.slice(0, 4)}...${a.slice(-4)}` : a;
+    return a.length > 12 ? `${a.slice(0, 4)}...${a.slice(-4)}` : a;
 }
 
 function actionDetails(action: MessageAction): DetailRow[] {
-  switch (action.type) {
-    case "transfer":
-      return [
-        { label: "Asset", value: action.assetSymbol },
-        { label: "Amount", value: `${action.amountLabel ?? action.amount} ${action.assetSymbol}` },
-        { label: "Recipient", value: action.toAddress, mono: true },
-      ];
-    case "swap":
-      return [
-        { label: "From", value: `${action.amount} ${action.inputToken}` },
-        {
-          label: "To (estimated)",
-          value: action.estimatedOutput
-            ? `~${action.estimatedOutput} ${action.outputToken}`
-            : action.outputToken,
-        },
-        { label: "Request ID", value: shortAddress(action.requestId), mono: true },
-      ];
-    case "addLiquidity":
-      return [
-        { label: "Pool", value: action.poolName },
-        { label: action.tokenXSymbol, value: Number(action.amountX).toPrecision(6) },
-        { label: action.tokenYSymbol, value: Number(action.amountY).toPrecision(6) },
-        { label: "Position", value: shortAddress(action.positionAddress), mono: true },
-      ];
-    case "removeLiquidity":
-      return [
-        { label: "Pool", value: shortAddress(action.poolAddress), mono: true },
-        { label: "Position", value: shortAddress(action.positionAddress), mono: true },
-      ];
-    case "launchToken":
-      return [
-        { label: "Token", value: action.tokenName },
-        { label: "Symbol", value: `$${action.tokenSymbol}` },
-        { label: "Mint", value: shortAddress(action.tokenMint), mono: true },
-      ];
-    case "claimFees":
-      return [{ label: "Mint", value: shortAddress(action.tokenMint), mono: true }];
-    case "predictionOrder":
-      return [
-        { label: "Market", value: action.marketTitle },
-        { label: "Side", value: action.side },
-        { label: "Wager", value: `$${action.amountUsd.toFixed(2)}` },
-        { label: "Contracts", value: action.contracts },
-        { label: "Order", value: shortAddress(action.orderPubkey), mono: true },
-      ];
-    case "sellPrediction":
-      return [
-        { label: "Market", value: action.marketTitle },
-        { label: "Position", value: shortAddress(action.positionPubkey), mono: true },
-      ];
-    case "claimPrediction":
-      return [
-        { label: "Market", value: action.marketTitle },
-        { label: "Payout", value: `$${action.payoutUsd}` },
-        { label: "Position", value: shortAddress(action.positionPubkey), mono: true },
-      ];
-    case "buyNFT":
-      return [
-        { label: "NFT", value: action.nftName },
-        { label: "Price", value: `${action.price} SOL` },
-        { label: "Mint", value: shortAddress(action.tokenMint), mono: true },
-      ];
-    case "listNFT":
-      return [
-        { label: "NFT", value: action.nftName },
-        { label: "Price", value: `${action.price} SOL` },
-        { label: "Mint", value: shortAddress(action.tokenMint), mono: true },
-      ];
-  }
+    switch (action.type) {
+        case "transfer":
+            return [
+                { label: "Asset", value: action.assetSymbol },
+                {
+                    label: "Amount",
+                    value: `${action.amountLabel ?? action.amount} ${action.assetSymbol}`,
+                },
+                { label: "Recipient", value: action.toAddress, mono: true },
+            ];
+        case "swap":
+            return [
+                {
+                    label: "From",
+                    value: `${action.amount} ${action.inputToken}`,
+                },
+                {
+                    label: "To (estimated)",
+                    value: action.estimatedOutput
+                        ? `~${action.estimatedOutput} ${action.outputToken}`
+                        : action.outputToken,
+                },
+                {
+                    label: "Request ID",
+                    value: shortAddress(action.requestId),
+                    mono: true,
+                },
+            ];
+        case "addLiquidity":
+            return [
+                { label: "Pool", value: action.poolName },
+                {
+                    label: action.tokenXSymbol,
+                    value: Number(action.amountX).toPrecision(6),
+                },
+                {
+                    label: action.tokenYSymbol,
+                    value: Number(action.amountY).toPrecision(6),
+                },
+                {
+                    label: "Position",
+                    value: shortAddress(action.positionAddress),
+                    mono: true,
+                },
+            ];
+        case "removeLiquidity":
+            return [
+                {
+                    label: "Pool",
+                    value: shortAddress(action.poolAddress),
+                    mono: true,
+                },
+                {
+                    label: "Position",
+                    value: shortAddress(action.positionAddress),
+                    mono: true,
+                },
+            ];
+        case "launchToken":
+            return [
+                { label: "Token", value: action.tokenName },
+                { label: "Symbol", value: `$${action.tokenSymbol}` },
+                {
+                    label: "Mint",
+                    value: shortAddress(action.tokenMint),
+                    mono: true,
+                },
+            ];
+        case "claimFees":
+            return [
+                {
+                    label: "Mint",
+                    value: shortAddress(action.tokenMint),
+                    mono: true,
+                },
+            ];
+        case "predictionOrder":
+            return [
+                { label: "Market", value: action.marketTitle },
+                { label: "Side", value: action.side },
+                { label: "Wager", value: `$${action.amountUsd.toFixed(2)}` },
+                { label: "Contracts", value: action.contracts },
+                {
+                    label: "Order",
+                    value: shortAddress(action.orderPubkey),
+                    mono: true,
+                },
+            ];
+        case "sellPrediction":
+            return [
+                { label: "Market", value: action.marketTitle },
+                {
+                    label: "Position",
+                    value: shortAddress(action.positionPubkey),
+                    mono: true,
+                },
+            ];
+        case "claimPrediction":
+            return [
+                { label: "Market", value: action.marketTitle },
+                { label: "Payout", value: `$${action.payoutUsd}` },
+                {
+                    label: "Position",
+                    value: shortAddress(action.positionPubkey),
+                    mono: true,
+                },
+            ];
+        case "buyNFT":
+            return [
+                { label: "NFT", value: action.nftName },
+                { label: "Price", value: `${action.price} SOL` },
+                {
+                    label: "Mint",
+                    value: shortAddress(action.tokenMint),
+                    mono: true,
+                },
+            ];
+        case "listNFT":
+            return [
+                { label: "NFT", value: action.nftName },
+                { label: "Price", value: `${action.price} SOL` },
+                {
+                    label: "Mint",
+                    value: shortAddress(action.tokenMint),
+                    mono: true,
+                },
+            ];
+    }
 }
 
 function summarizeAction(action: MessageAction): string {
-  switch (action.type) {
-    case "transfer":
-      return `Send ${action.amountLabel ?? action.amount} ${action.assetSymbol} to ${action.toAddress.slice(0, 4)}...${action.toAddress.slice(-4)}`;
-    case "swap":
-      return action.estimatedOutput
-        ? `Swap ${action.amount} ${action.inputToken} → ~${action.estimatedOutput} ${action.outputToken}`
-        : `Swap ${action.amount} ${action.inputToken} → ${action.outputToken}`;
-    case "addLiquidity":
-      return `Add ${Number(action.amountX).toPrecision(6)} ${action.tokenXSymbol} + ${Number(action.amountY).toPrecision(6)} ${action.tokenYSymbol} to ${action.poolName}`;
-    case "removeLiquidity":
-      return `Remove liquidity from position ${action.positionAddress.slice(0, 8)}...`;
-    case "launchToken":
-      return `Launch ${action.tokenName} ($${action.tokenSymbol})`;
-    case "claimFees":
-      return `Claim fees for token ${action.tokenMint.slice(0, 8)}...`;
-    case "predictionOrder":
-      return `Bet $${action.amountUsd.toFixed(2)} ${action.side} on "${action.marketTitle}"`;
-    case "sellPrediction":
-      return `Sell position in "${action.marketTitle}"`;
-    case "claimPrediction":
-      return `Claim $${action.payoutUsd} from "${action.marketTitle}"`;
-    case "buyNFT":
-      return `Buy "${action.nftName}" for ${action.price} SOL`;
-    case "listNFT":
-      return `List "${action.nftName}" for ${action.price} SOL`;
-  }
+    switch (action.type) {
+        case "transfer":
+            return `Send ${action.amountLabel ?? action.amount} ${action.assetSymbol} to ${action.toAddress.slice(0, 4)}...${action.toAddress.slice(-4)}`;
+        case "swap":
+            return action.estimatedOutput
+                ? `Swap ${action.amount} ${action.inputToken} → ~${action.estimatedOutput} ${action.outputToken}`
+                : `Swap ${action.amount} ${action.inputToken} → ${action.outputToken}`;
+        case "addLiquidity":
+            return `Add ${Number(action.amountX).toPrecision(6)} ${action.tokenXSymbol} + ${Number(action.amountY).toPrecision(6)} ${action.tokenYSymbol} to ${action.poolName}`;
+        case "removeLiquidity":
+            return `Remove liquidity from position ${action.positionAddress.slice(0, 8)}...`;
+        case "launchToken":
+            return `Launch ${action.tokenName} ($${action.tokenSymbol})`;
+        case "claimFees":
+            return `Claim fees for token ${action.tokenMint.slice(0, 8)}...`;
+        case "predictionOrder":
+            return `Bet $${action.amountUsd.toFixed(2)} ${action.side} on "${action.marketTitle}"`;
+        case "sellPrediction":
+            return `Sell position in "${action.marketTitle}"`;
+        case "claimPrediction":
+            return `Claim $${action.payoutUsd} from "${action.marketTitle}"`;
+        case "buyNFT":
+            return `Buy "${action.nftName}" for ${action.price} SOL`;
+        case "listNFT":
+            return `List "${action.nftName}" for ${action.price} SOL`;
+    }
 }
 
 // Suggestion chips for the empty/hero state — mirrors the Figma "See what can
 // Solens do" list, scoped to capabilities the backend actually supports.
 const suggestedPrompts: { text: string; highlight?: boolean }[] = [
-  { text: "How should I invest $100?" },
-  { text: "Analyze my portfolio and suggest investments" },
-  { text: "Show my portfolio, with total balance", highlight: true },
-  { text: "Show me the trending memecoins right now" },
-  { text: "What's the price of SOL?" },
-  { text: "Swap 0.1 SOL for USDC" },
-  { text: "Search Meteora pools for SOL-USDC" },
-  { text: "Show my NFTs" },
+    { text: "How should I invest $100?" },
+    { text: "Analyze my portfolio and suggest investments" },
+    { text: "Show my portfolio, with total balance", highlight: true },
+    { text: "Show me the trending memecoins right now" },
+    { text: "What's the price of SOL?" },
+    { text: "Swap 0.1 SOL for USDC" },
+    { text: "Search Meteora pools for SOL-USDC" },
+    { text: "Show my NFTs" },
 ];
 
 function SolensAvatar() {
-  return (
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-600 text-sm font-extrabold lowercase text-white">
-      s
-    </div>
-  );
+    return (
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-600 text-sm font-extrabold lowercase text-white">
+            s
+        </div>
+    );
 }
 
 function SendArrow({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0-6 6m6-6 6 6" />
-    </svg>
-  );
+    return (
+        <svg
+            className={className}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.2}
+        >
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 19V5m0 0-6 6m6-6 6 6"
+            />
+        </svg>
+    );
 }
 
 export default function ChatArea() {
-  const { ready, authenticated, login } = usePrivy();
-  const { getAccessToken } = useToken();
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [walletError, setWalletError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [confirmingMsg, setConfirmingMsg] = useState<Message | null>(null);
-  const [actionPending, setActionPending] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const { ready, authenticated, login } = usePrivy();
+    const { getAccessToken } = useToken();
+    const [walletAddress, setWalletAddress] = useState<string | null>(null);
+    const [walletError, setWalletError] = useState<string | null>(null);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [input, setInput] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [confirmingMsg, setConfirmingMsg] = useState<Message | null>(null);
+    const [actionPending, setActionPending] = useState<string | null>(null);
+    const [finishedActions, setFinishedActions] = useState<Set<string>>(
+        () => new Set(),
+    );
+    const [copied, setCopied] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    if (!authenticated) {
-      setWalletAddress(null);
-      setWalletError(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await getAccessToken();
-        if (!token) throw new Error("No Privy access token");
-        const res = await fetch("/api/wallet/ensure", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (cancelled) return;
-        if (!res.ok || !data.address) {
-          setWalletError(data.error || "Could not load wallet");
-          return;
+    useEffect(() => {
+        if (!authenticated) {
+            setWalletAddress(null);
+            setWalletError(null);
+            return;
         }
-        setWalletAddress(data.address);
-      } catch (e) {
-        if (cancelled) return;
-        setWalletError(e instanceof Error ? e.message : "Wallet load failed");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [authenticated, getAccessToken]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const executeConfirmedAction = useCallback(
-    async (msg: Message) => {
-      if (!msg.action) return;
-      const action = msg.action;
-      setActionPending(msg.id);
-      setConfirmingMsg(null);
-
-      try {
-        const token = await getAccessToken();
-        if (!token) throw new Error("Not authenticated");
-
-        const res = await fetch("/api/sign-broadcast", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ action }),
-        });
-        const data = await res.json();
-
-        const label = ACTION_LABELS[action.type];
-        if (data.ok && data.signature) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now().toString(),
-              role: "assistant",
-              content: `${label} successful! [View on Solscan](https://solscan.io/tx/${data.signature})`,
-            },
-          ]);
-        } else {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now().toString(),
-              role: "assistant",
-              content: `${label} failed: ${data.error || data.detail || "unknown"}`,
-            },
-          ]);
-        }
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : "Signing failed";
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            role: "assistant",
-            content: `${ACTION_LABELS[action.type]} failed: ${errMsg}`,
-          },
-        ]);
-      } finally {
-        setActionPending(null);
-      }
-    },
-    [getAccessToken]
-  );
-
-  const handleActionCancel = useCallback((msgId: string, actionType: MessageAction["type"]) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === msgId && m.action
-          ? { ...m, action: { ...m.action, cancelled: true } as MessageAction }
-          : m
-      )
-    );
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: `${ACTION_LABELS[actionType]} cancelled.`,
-      },
-    ]);
-  }, []);
-
-  const handleSend = async (text?: string) => {
-    const content = text || input;
-    if (!content.trim() || isLoading) return;
-
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content,
-    };
-
-    setMessages((prev) =>
-      prev.map((m) => (m.quickReplies ? { ...m, quickReplies: undefined } : m))
-    );
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
-    setIsLoading(true);
-
-    try {
-      const history = messages.map((m) => ({ role: m.role, content: m.content }));
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: content,
-          walletAddress,
-          history,
-        }),
-      });
-      const data = await res.json();
-
-      const assistantMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.message || data.error || "Something went wrong.",
-        action: data.action || undefined,
-        quickReplies: data.quickReplies || undefined,
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: "Sorry, something went wrong. Please try again.",
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (!ready) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="animate-pulse text-text-secondary">Loading…</div>
-      </div>
-    );
-  }
-
-  const isEmpty = messages.length === 0;
-
-  return (
-    <div className="relative flex h-full flex-1 flex-col bg-base">
-      {/* Topbar */}
-      <header className="flex items-center justify-end border-b border-subtle px-6 py-2.5">
-        {!authenticated ? (
-          <button
-            onClick={login}
-            className="rounded-lg bg-violet-500 px-3.5 py-2 text-xs font-semibold text-on-brand transition-colors hover:bg-violet-400"
-          >
-            Login
-          </button>
-        ) : walletAddress ? (
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(walletAddress);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-            className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs text-text-secondary transition-colors hover:text-white"
-            title="Copy address"
-          >
-            {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
-            {copied ? (
-              <svg className="h-3.5 w-3.5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            )}
-          </button>
-        ) : walletError ? (
-          <span className="text-xs text-danger" title={walletError}>wallet error</span>
-        ) : (
-          <span className="animate-pulse text-xs text-text-secondary">loading wallet…</span>
-        )}
-      </header>
-
-      {/* Bottom violet glow */}
-      <div className="glow-violet pointer-events-none absolute inset-x-0 bottom-0 h-[360px]" />
-
-      {/* Scroll area */}
-      <div className="relative flex-1 overflow-y-auto px-6 py-10">
-        {isEmpty ? (
-          <div className="mx-auto w-full max-w-3xl">
-            <div className="flex flex-col gap-3">
-              <h1 className="text-gradient-brand text-[32px] font-semibold leading-tight">
-                Welcome to Solens
-                <br />
-                The simplest way to trade crypto!
-              </h1>
-              <p className="max-w-xl text-sm leading-relaxed text-text-secondary">
-                New to crypto? You can ask me anything. Remember I&apos;m an AI, I don&apos;t judge.
-                Whenever you&apos;re ready, I&apos;m here to help you do transactions with ease and confidence.
-              </p>
-            </div>
-
-            <div className="mt-7 flex flex-col gap-2 rounded-2xl bg-surface p-3">
-              <p className="px-1 text-sm text-text-secondary">See what Solens can do:</p>
-              {suggestedPrompts.map(({ text, highlight }) => (
-                <button
-                  key={text}
-                  onClick={() => handleSend(text)}
-                  className={`rounded-xl px-4 py-2.5 text-left text-sm text-white transition-colors hover:bg-elevated ${
-                    highlight ? "border border-violet-300 bg-elevated/40" : "bg-elevated/20"
-                  }`}
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="mx-auto w-full max-w-3xl space-y-5">
-            {messages.map((msg) => (
-              <div key={msg.id}>
-                <div className={`flex items-start gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  {msg.role === "assistant" && <SolensAvatar />}
-                  <div
-                    className={`max-w-[82%] overflow-hidden break-words rounded-2xl px-4 py-2.5 text-sm ${
-                      msg.role === "user"
-                        ? "bg-violet-500 text-white"
-                        : "border border-subtle bg-surface text-text-primary"
-                    }`}
-                  >
-                    {msg.role === "assistant" ? (
-                      <Markdown
-                        components={{
-                          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                          ul: ({ children }) => <ul className="mb-2 ml-4 list-disc">{children}</ul>,
-                          ol: ({ children }) => <ol className="mb-2 ml-4 list-decimal">{children}</ol>,
-                          li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                          a: ({ href, children }) => (
-                            <a href={href} target="_blank" rel="noopener noreferrer" className="break-all text-violet-300 underline hover:text-violet-200">
-                              {children}
-                            </a>
-                          ),
-                          code: ({ children }) => (
-                            <code className="break-all rounded bg-elevated px-1 py-0.5 text-xs">{children}</code>
-                          ),
-                        }}
-                      >
-                        {msg.content}
-                      </Markdown>
-                    ) : (
-                      msg.content
-                    )}
-                  </div>
-                </div>
-
-                {msg.action && !msg.action.cancelled && (
-                  <div className="ml-[38px]">
-                    <ActionCard
-                      action={msg.action}
-                      pending={actionPending === msg.id}
-                      onConfirm={() => setConfirmingMsg(msg)}
-                      onCancel={() => handleActionCancel(msg.id, msg.action!.type)}
-                    />
-                  </div>
-                )}
-
-                {msg.quickReplies && msg.quickReplies.length > 0 && (
-                  <div className="ml-[38px] mt-2.5 flex max-w-[82%] flex-wrap gap-2">
-                    {msg.quickReplies.map((qr, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleSend(qr.prompt)}
-                        disabled={isLoading}
-                        className="rounded-lg border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-all hover:border-violet-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {qr.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-            {isLoading && (
-              <div className="flex items-start justify-start gap-2.5">
-                <SolensAvatar />
-                <div className="rounded-2xl border border-subtle bg-surface px-4 py-3 text-sm">
-                  <span className="inline-flex gap-1">
-                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300" />
-                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300 [animation-delay:0.15s]" />
-                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300 [animation-delay:0.3s]" />
-                  </span>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
-
-      {/* Confirm modal */}
-      {confirmingMsg?.action && (() => {
-        const action = confirmingMsg.action;
-        const txCount = actionTransactionCount(action);
-        const feeLamports = txCount * 5000;
-        const feeSol = feeLamports / 1_000_000_000;
-        const details = actionDetails(action);
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div className="mx-4 w-full max-w-md space-y-4 rounded-2xl border border-subtle bg-surface p-6 shadow-2xl">
-              <div>
-                <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-violet-300">
-                  {ACTION_LABELS[action.type]}
-                </div>
-                <div className="text-base text-white">{summarizeAction(action)}</div>
-              </div>
-
-              <dl className="divide-y divide-subtle rounded-xl border border-subtle bg-base text-sm">
-                {details.map((row) => (
-                  <div key={row.label} className="flex items-start justify-between gap-3 px-3 py-2">
-                    <dt className="text-text-secondary">{row.label}</dt>
-                    <dd className={`break-all text-right text-white ${row.mono ? "font-mono text-xs" : ""}`}>
-                      {row.value}
-                    </dd>
-                  </div>
-                ))}
-                <div className="flex items-start justify-between gap-3 px-3 py-2">
-                  <dt className="text-text-secondary">Transactions</dt>
-                  <dd className="text-white">{txCount}</dd>
-                </div>
-                <div className="flex items-start justify-between gap-3 px-3 py-2">
-                  <dt className="text-text-secondary">Network fee (est.)</dt>
-                  <dd className="text-white">
-                    ~{feeSol.toFixed(6)} SOL{" "}
-                    <span className="text-text-secondary">({feeLamports.toLocaleString()} lamports)</span>
-                  </dd>
-                </div>
-                <div className="flex items-start justify-between gap-3 px-3 py-2">
-                  <dt className="text-text-secondary">Network</dt>
-                  <dd className="text-white">Solana mainnet</dd>
-                </div>
-                <div className="flex items-start justify-between gap-3 px-3 py-2">
-                  <dt className="text-text-secondary">Signer</dt>
-                  <dd className="font-mono text-xs text-white">
-                    {walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-6)}` : "—"}
-                  </dd>
-                </div>
-              </dl>
-
-              <p className="text-xs text-text-secondary">
-                Network fee is the base Solana cost (5,000 lamports per signature). Priority fees and
-                program-specific costs (e.g. account creation rent) may add to this.
-              </p>
-
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  onClick={() => setConfirmingMsg(null)}
-                  disabled={actionPending === confirmingMsg.id}
-                  className="rounded-lg bg-elevated px-4 py-2 text-sm text-text-secondary transition-colors hover:text-white disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => executeConfirmedAction(confirmingMsg)}
-                  disabled={actionPending === confirmingMsg.id}
-                  className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400 disabled:opacity-50"
-                >
-                  {actionPending === confirmingMsg.id ? "Signing…" : "Confirm"}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Composer */}
-      <div className="relative px-6 pb-6">
-        <div className="mx-auto w-full max-w-3xl">
-          <div className="flex items-end gap-2 rounded-2xl border border-subtle bg-surface px-3 py-2.5 focus-within:border-violet-300">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px";
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
+        let cancelled = false;
+        (async () => {
+            try {
+                const token = await getAccessToken();
+                if (!token) throw new Error("No Privy access token");
+                const res = await fetch("/api/wallet/ensure", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (cancelled) return;
+                if (!res.ok || !data.address) {
+                    setWalletError(data.error || "Could not load wallet");
+                    return;
                 }
-              }}
-              placeholder={authenticated ? "Ask anything about crypto…" : "Login to get started…"}
-              disabled={!authenticated || isLoading}
-              rows={1}
-              className="max-h-[150px] flex-1 resize-none self-center bg-transparent px-1 text-sm text-white placeholder-text-secondary/70 outline-none disabled:cursor-not-allowed"
-            />
-            <button
-              onClick={() => handleSend()}
-              disabled={!authenticated || !input.trim() || isLoading}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-violet-500 transition-opacity hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed"
-              aria-label="Send"
-            >
-              <SendArrow className="h-4 w-4" />
-            </button>
-          </div>
+                setWalletAddress(data.address);
+            } catch (e) {
+                if (cancelled) return;
+                setWalletError(
+                    e instanceof Error ? e.message : "Wallet load failed",
+                );
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [authenticated, getAccessToken]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
+    const executeConfirmedAction = useCallback(
+        async (msg: Message) => {
+            if (!msg.action) return;
+            if (finishedActions.has(msg.id)) return; // already completed, prevent double-submit
+            const action = msg.action;
+            setActionPending(msg.id);
+            setConfirmingMsg(null);
+
+            const appendAssistant = (content: string) =>
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: Date.now().toString(),
+                        role: "assistant",
+                        content,
+                    },
+                ]);
+
+            const signAndBroadcast = async (act: MessageAction) => {
+                const token = await getAccessToken();
+                if (!token) throw new Error("Not authenticated");
+                const res = await fetch("/api/sign-broadcast", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ action: act }),
+                });
+                return (await res.json()) as {
+                    ok?: boolean;
+                    pending?: boolean;
+                    signature?: string;
+                    error?: string;
+                    detail?: string;
+                };
+            };
+
+            // Fetch a fresh quote (and blockhash) for a swap that failed due to
+            // an expired quote or a transient fee error.
+            const refetchSwap = async (
+                swap: SwapAction,
+            ): Promise<SwapAction> => {
+                const res = await fetch("/api/swap/order", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        inputToken: swap.inputToken,
+                        outputToken: swap.outputToken,
+                        amount: swap.amount,
+                        walletAddress,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.transaction || !data.requestId) {
+                    throw new Error(
+                        data.error || "Could not refresh the swap quote",
+                    );
+                }
+                return {
+                    ...swap,
+                    transaction: data.transaction,
+                    requestId: data.requestId,
+                };
+            };
+
+            const isRetryableSwapError = (m: string) =>
+                /expired|blockhash|not.*confirmed|insufficient|timed out|slippage|0x1/i.test(
+                    m,
+                );
+
+            const label = ACTION_LABELS[action.type];
+            try {
+                let data = await signAndBroadcast(action);
+
+                // Swaps: a stale quote/blockhash or transient fee error is
+                // recoverable, so refresh the quote and retry once.
+                if (
+                    !data.ok &&
+                    !data.pending &&
+                    action.type === "swap" &&
+                    walletAddress &&
+                    isRetryableSwapError(String(data.error || ""))
+                ) {
+                    try {
+                        const refreshed = await refetchSwap(action);
+                        appendAssistant(
+                            "The previous quote expired, so I refreshed it and am retrying the swap on the latest price.",
+                        );
+                        data = await signAndBroadcast(refreshed);
+                    } catch {
+                        // keep the original failure below
+                    }
+                }
+
+                if (data.ok && data.signature) {
+                    setFinishedActions((prev) => new Set(prev).add(msg.id));
+                    appendAssistant(
+                        `${label} successful! [View on Solscan](https://solscan.io/tx/${data.signature})`,
+                    );
+                } else if (data.pending) {
+                    // Submitted but not confirmed: do not claim success, but lock
+                    // the action so it is not re-submitted while it lands.
+                    setFinishedActions((prev) => new Set(prev).add(msg.id));
+                    const link = data.signature
+                        ? ` [Check on Solscan](https://solscan.io/tx/${data.signature})`
+                        : "";
+                    appendAssistant(
+                        `${label} submitted but not confirmed yet. It may still land.${link}`,
+                    );
+                } else {
+                    appendAssistant(
+                        `${label} failed: ${data.error || data.detail || "unknown"}`,
+                    );
+                }
+            } catch (e) {
+                const errMsg =
+                    e instanceof Error ? e.message : "Signing failed";
+                appendAssistant(`${label} failed: ${errMsg}`);
+            } finally {
+                setActionPending(null);
+            }
+        },
+        [getAccessToken, walletAddress, finishedActions],
+    );
+
+    const handleActionCancel = useCallback(
+        (msgId: string, actionType: MessageAction["type"]) => {
+            setMessages((prev) =>
+                prev.map((m) =>
+                    m.id === msgId && m.action
+                        ? {
+                              ...m,
+                              action: {
+                                  ...m.action,
+                                  cancelled: true,
+                              } as MessageAction,
+                          }
+                        : m,
+                ),
+            );
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: Date.now().toString(),
+                    role: "assistant",
+                    content: `${ACTION_LABELS[actionType]} cancelled.`,
+                },
+            ]);
+        },
+        [],
+    );
+
+    const handleSend = async (text?: string) => {
+        const content = text || input;
+        if (!content.trim() || isLoading) return;
+
+        const userMsg: Message = {
+            id: Date.now().toString(),
+            role: "user",
+            content,
+        };
+
+        setMessages((prev) =>
+            prev.map((m) =>
+                m.quickReplies ? { ...m, quickReplies: undefined } : m,
+            ),
+        );
+        setMessages((prev) => [...prev, userMsg]);
+        setInput("");
+        if (textareaRef.current) textareaRef.current.style.height = "auto";
+        setIsLoading(true);
+
+        try {
+            const history = messages.map((m) => ({
+                role: m.role,
+                content: m.content,
+            }));
+            const res = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: content,
+                    walletAddress,
+                    history,
+                }),
+            });
+            const data = await res.json();
+
+            const assistantMsg: Message = {
+                id: (Date.now() + 1).toString(),
+                role: "assistant",
+                content: data.message || data.error || "Something went wrong.",
+                action: data.action || undefined,
+                quickReplies: data.quickReplies || undefined,
+            };
+            setMessages((prev) => [...prev, assistantMsg]);
+        } catch {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: (Date.now() + 1).toString(),
+                    role: "assistant",
+                    content: "Sorry, something went wrong. Please try again.",
+                },
+            ]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (!ready) {
+        return (
+            <div className="flex flex-1 items-center justify-center">
+                <div className="animate-pulse text-text-secondary">
+                    Loading…
+                </div>
+            </div>
+        );
+    }
+
+    const isEmpty = messages.length === 0;
+
+    return (
+        <div className="relative flex h-full flex-1 flex-col bg-base">
+            {/* Topbar */}
+            <header className="flex items-center justify-end border-b border-subtle px-4 py-2.5 sm:px-6">
+                {!authenticated ? (
+                    <button
+                        onClick={login}
+                        className="rounded-lg bg-violet-500 px-3.5 py-2 text-xs font-semibold text-on-brand transition-colors hover:bg-violet-400"
+                    >
+                        Login
+                    </button>
+                ) : walletAddress ? (
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(walletAddress);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs text-text-secondary transition-colors hover:text-white"
+                        title="Copy address"
+                    >
+                        {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+                        {copied ? (
+                            <svg
+                                className="h-3.5 w-3.5 text-success"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M5 13l4 4L19 7"
+                                />
+                            </svg>
+                        ) : (
+                            <svg
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                />
+                            </svg>
+                        )}
+                    </button>
+                ) : walletError ? (
+                    <span className="text-xs text-danger" title={walletError}>
+                        wallet error
+                    </span>
+                ) : (
+                    <span className="animate-pulse text-xs text-text-secondary">
+                        loading wallet…
+                    </span>
+                )}
+            </header>
+
+            {/* Bottom violet glow */}
+            <div className="glow-violet pointer-events-none absolute inset-x-0 bottom-0 h-[360px]" />
+
+            {/* Scroll area */}
+            <div className="relative flex-1 overflow-y-auto px-4 py-8 sm:px-6 sm:py-10">
+                {isEmpty ? (
+                    <div className="mx-auto w-full max-w-3xl">
+                        <div className="flex flex-col gap-3">
+                            <h1 className="text-gradient-brand text-2xl font-semibold leading-tight sm:text-[32px]">
+                                Welcome to Solens
+                                <br />
+                                The simplest way to trade crypto!
+                            </h1>
+                            <p className="max-w-xl text-sm leading-relaxed text-text-secondary">
+                                New to crypto? You can ask me anything. Remember
+                                I&apos;m an AI, I don&apos;t judge. Whenever
+                                you&apos;re ready, I&apos;m here to help you do
+                                transactions with ease and confidence.
+                            </p>
+                        </div>
+
+                        <div className="mt-7 flex flex-col gap-2 rounded-2xl bg-surface p-3">
+                            <p className="px-1 text-sm text-text-secondary">
+                                See what Solens can do:
+                            </p>
+                            {suggestedPrompts.map(({ text, highlight }) => (
+                                <button
+                                    key={text}
+                                    onClick={() => handleSend(text)}
+                                    className={`rounded-xl px-4 py-2.5 text-left text-sm text-white transition-colors hover:bg-elevated ${
+                                        highlight
+                                            ? "border border-violet-300 bg-elevated/40"
+                                            : "bg-elevated/20"
+                                    }`}
+                                >
+                                    {text}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="mx-auto w-full max-w-3xl space-y-5">
+                        {messages.map((msg) => (
+                            <div key={msg.id}>
+                                <div
+                                    className={`flex items-start gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                                >
+                                    {msg.role === "assistant" && (
+                                        <SolensAvatar />
+                                    )}
+                                    <div
+                                        className={`max-w-[82%] overflow-hidden break-words rounded-2xl px-4 py-2.5 text-sm ${
+                                            msg.role === "user"
+                                                ? "bg-violet-500 text-white"
+                                                : "border border-subtle bg-surface text-text-primary"
+                                        }`}
+                                    >
+                                        {msg.role === "assistant" ? (
+                                            <Markdown
+                                                components={{
+                                                    p: ({ children }) => (
+                                                        <p className="mb-2 last:mb-0">
+                                                            {children}
+                                                        </p>
+                                                    ),
+                                                    strong: ({ children }) => (
+                                                        <strong className="font-semibold text-white">
+                                                            {children}
+                                                        </strong>
+                                                    ),
+                                                    ul: ({ children }) => (
+                                                        <ul className="mb-2 ml-4 list-disc">
+                                                            {children}
+                                                        </ul>
+                                                    ),
+                                                    ol: ({ children }) => (
+                                                        <ol className="mb-2 ml-4 list-decimal">
+                                                            {children}
+                                                        </ol>
+                                                    ),
+                                                    li: ({ children }) => (
+                                                        <li className="mb-0.5">
+                                                            {children}
+                                                        </li>
+                                                    ),
+                                                    a: ({ href, children }) => (
+                                                        <a
+                                                            href={href}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="break-all text-violet-300 underline hover:text-violet-200"
+                                                        >
+                                                            {children}
+                                                        </a>
+                                                    ),
+                                                    code: ({ children }) => (
+                                                        <code className="break-all rounded bg-elevated px-1 py-0.5 text-xs">
+                                                            {children}
+                                                        </code>
+                                                    ),
+                                                }}
+                                            >
+                                                {msg.content}
+                                            </Markdown>
+                                        ) : (
+                                            msg.content
+                                        )}
+                                    </div>
+                                </div>
+
+                                {msg.action &&
+                                    !msg.action.cancelled &&
+                                    !finishedActions.has(msg.id) && (
+                                        <div className="ml-[38px]">
+                                            <ActionCard
+                                                action={msg.action}
+                                                pending={
+                                                    actionPending === msg.id
+                                                }
+                                                onConfirm={() =>
+                                                    setConfirmingMsg(msg)
+                                                }
+                                                onCancel={() =>
+                                                    handleActionCancel(
+                                                        msg.id,
+                                                        msg.action!.type,
+                                                    )
+                                                }
+                                            />
+                                        </div>
+                                    )}
+
+                                {msg.quickReplies &&
+                                    msg.quickReplies.length > 0 && (
+                                        <div className="ml-[38px] mt-2.5 flex max-w-[82%] flex-wrap gap-2">
+                                            {msg.quickReplies.map((qr, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() =>
+                                                        handleSend(qr.prompt)
+                                                    }
+                                                    disabled={isLoading}
+                                                    className="rounded-lg border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-all hover:border-violet-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    {qr.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                            </div>
+                        ))}
+                        {isLoading && (
+                            <div className="flex items-start justify-start gap-2.5">
+                                <SolensAvatar />
+                                <div className="rounded-2xl border border-subtle bg-surface px-4 py-3 text-sm">
+                                    <span className="inline-flex gap-1">
+                                        <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300" />
+                                        <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300 [animation-delay:0.15s]" />
+                                        <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300 [animation-delay:0.3s]" />
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+                )}
+            </div>
+
+            {/* Confirm modal */}
+            {confirmingMsg?.action &&
+                (() => {
+                    const action = confirmingMsg.action;
+                    const txCount = actionTransactionCount(action);
+                    const feeLamports = txCount * 5000;
+                    const feeSol = feeLamports / 1_000_000_000;
+                    const details = actionDetails(action);
+                    return (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                            <div className="mx-4 w-full max-w-md space-y-4 rounded-2xl border border-subtle bg-surface p-6 shadow-2xl">
+                                <div>
+                                    <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-violet-300">
+                                        {ACTION_LABELS[action.type]}
+                                    </div>
+                                    <div className="text-base text-white">
+                                        {summarizeAction(action)}
+                                    </div>
+                                </div>
+
+                                <dl className="divide-y divide-subtle rounded-xl border border-subtle bg-base text-sm">
+                                    {details.map((row) => (
+                                        <div
+                                            key={row.label}
+                                            className="flex items-start justify-between gap-3 px-3 py-2"
+                                        >
+                                            <dt className="text-text-secondary">
+                                                {row.label}
+                                            </dt>
+                                            <dd
+                                                className={`break-all text-right text-white ${row.mono ? "font-mono text-xs" : ""}`}
+                                            >
+                                                {row.value}
+                                            </dd>
+                                        </div>
+                                    ))}
+                                    <div className="flex items-start justify-between gap-3 px-3 py-2">
+                                        <dt className="text-text-secondary">
+                                            Transactions
+                                        </dt>
+                                        <dd className="text-white">
+                                            {txCount}
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3 px-3 py-2">
+                                        <dt className="text-text-secondary">
+                                            Network fee (est.)
+                                        </dt>
+                                        <dd className="text-white">
+                                            ~{feeSol.toFixed(6)} SOL{" "}
+                                            <span className="text-text-secondary">
+                                                ({feeLamports.toLocaleString()}{" "}
+                                                lamports)
+                                            </span>
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3 px-3 py-2">
+                                        <dt className="text-text-secondary">
+                                            Network
+                                        </dt>
+                                        <dd className="text-white">
+                                            Solana mainnet
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3 px-3 py-2">
+                                        <dt className="text-text-secondary">
+                                            Signer
+                                        </dt>
+                                        <dd className="font-mono text-xs text-white">
+                                            {walletAddress
+                                                ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-6)}`
+                                                : "—"}
+                                        </dd>
+                                    </div>
+                                </dl>
+
+                                <p className="text-xs text-text-secondary">
+                                    Network fee is the base Solana cost (5,000
+                                    lamports per signature). Priority fees and
+                                    program-specific costs (e.g. account
+                                    creation rent) may add to this.
+                                </p>
+
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                    <button
+                                        onClick={() => setConfirmingMsg(null)}
+                                        disabled={
+                                            actionPending === confirmingMsg.id
+                                        }
+                                        className="rounded-lg bg-elevated px-4 py-2 text-sm text-text-secondary transition-colors hover:text-white disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() =>
+                                            executeConfirmedAction(
+                                                confirmingMsg,
+                                            )
+                                        }
+                                        disabled={
+                                            actionPending === confirmingMsg.id
+                                        }
+                                        className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400 disabled:opacity-50"
+                                    >
+                                        {actionPending === confirmingMsg.id
+                                            ? "Signing…"
+                                            : "Confirm"}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
+            {/* Composer */}
+            <div className="relative px-4 pb-6 sm:px-6">
+                <div className="mx-auto w-full max-w-3xl">
+                    <div className="flex items-end gap-2 rounded-2xl border border-subtle bg-surface px-3 py-2.5 focus-within:border-violet-300">
+                        <textarea
+                            ref={textareaRef}
+                            value={input}
+                            onChange={(e) => {
+                                setInput(e.target.value);
+                                e.target.style.height = "auto";
+                                e.target.style.height =
+                                    Math.min(e.target.scrollHeight, 150) + "px";
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                }
+                            }}
+                            placeholder={
+                                authenticated
+                                    ? "Ask anything about crypto…"
+                                    : "Login to get started…"
+                            }
+                            disabled={!authenticated || isLoading}
+                            rows={1}
+                            className="max-h-[150px] flex-1 resize-none self-center bg-transparent px-1 text-sm text-white placeholder-text-secondary/70 outline-none disabled:cursor-not-allowed"
+                        />
+                        <button
+                            onClick={() => handleSend()}
+                            disabled={
+                                !authenticated || !input.trim() || isLoading
+                            }
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-violet-500 transition-opacity hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed"
+                            aria-label="Send"
+                        >
+                            <SendArrow className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 }
 
 function ActionCard({
-  action,
-  pending,
-  onConfirm,
-  onCancel,
+    action,
+    pending,
+    onConfirm,
+    onCancel,
 }: {
-  action: MessageAction;
-  pending: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
+    action: MessageAction;
+    pending: boolean;
+    onConfirm: () => void;
+    onCancel: () => void;
 }) {
-  const details = actionDetails(action);
-  return (
-    <div className="mt-2.5 max-w-[82%] overflow-hidden rounded-2xl border border-subtle bg-surface">
-      <div className="flex items-center justify-between border-b border-subtle px-4 py-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-300">
-          {ACTION_LABELS[action.type]}
-        </span>
-        <span className="text-xs text-text-secondary">Review &amp; confirm</span>
-      </div>
-      <dl className="divide-y divide-subtle/60 px-4 py-1 text-sm">
-        {details.map((row) => (
-          <div key={row.label} className="flex items-start justify-between gap-3 py-2">
-            <dt className="text-text-secondary">{row.label}</dt>
-            <dd className={`break-all text-right text-white ${row.mono ? "font-mono text-xs" : ""}`}>
-              {row.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <div className="flex items-center gap-2 px-4 py-3">
-        <button
-          onClick={onConfirm}
-          disabled={pending}
-          className="flex-1 rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {pending ? "Signing…" : "Confirm"}
-        </button>
-        <button
-          onClick={onCancel}
-          disabled={pending}
-          className="rounded-lg bg-elevated px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
+    const details = actionDetails(action);
+    return (
+        <div className="mt-2.5 max-w-[82%] overflow-hidden rounded-2xl border border-subtle bg-surface">
+            <div className="flex items-center justify-between border-b border-subtle px-4 py-2.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-300">
+                    {ACTION_LABELS[action.type]}
+                </span>
+                <span className="text-xs text-text-secondary">
+                    Review &amp; confirm
+                </span>
+            </div>
+            <dl className="divide-y divide-subtle/60 px-4 py-1 text-sm">
+                {details.map((row) => (
+                    <div
+                        key={row.label}
+                        className="flex items-start justify-between gap-3 py-2"
+                    >
+                        <dt className="text-text-secondary">{row.label}</dt>
+                        <dd
+                            className={`break-all text-right text-white ${row.mono ? "font-mono text-xs" : ""}`}
+                        >
+                            {row.value}
+                        </dd>
+                    </div>
+                ))}
+            </dl>
+            <div className="flex items-center gap-2 px-4 py-3">
+                <button
+                    onClick={onConfirm}
+                    disabled={pending}
+                    className="flex-1 rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    {pending ? "Signing…" : "Confirm"}
+                </button>
+                <button
+                    onClick={onCancel}
+                    disabled={pending}
+                    className="rounded-lg bg-elevated px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>
+    );
 }

@@ -1,28 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
+import { useAppWallet } from "../components/useAppWallet";
+import {
+  getStoredTheme,
+  setTheme,
+  subscribeSystemTheme,
+  THEME_LABELS,
+  labelToPref,
+  type ThemePref,
+} from "@/app/lib/theme";
+
+const PRIVY_ENABLED = Boolean(process.env.NEXT_PUBLIC_PRIVY_APP_ID);
 
 function Select({
   options,
   value,
   onChange,
-  disabled,
 }: {
   options: string[];
   value: string;
   onChange: (v: string) => void;
-  disabled?: boolean;
 }) {
   return (
     <div className="relative">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className={`appearance-none rounded-lg border border-transparent bg-elevated py-2 pl-4 pr-9 text-sm transition-colors focus:border-violet-300 focus:outline-none ${
-          disabled ? "cursor-not-allowed text-text-secondary/60" : "text-white"
-        }`}
+        className="appearance-none rounded-lg border border-transparent bg-elevated py-2 pl-4 pr-9 text-sm text-text-primary transition-colors focus:border-violet-300 focus:outline-none"
       >
         {options.map((o) => (
           <option key={o}>{o}</option>
@@ -36,6 +42,17 @@ function Select({
       >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
       </svg>
+    </div>
+  );
+}
+
+function ComingSoon({ value }: { value: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="text-sm text-text-secondary/60">{value}</span>
+      <span className="rounded-full bg-violet-500/15 px-2.5 py-1 text-[11px] font-semibold text-violet-300">
+        Coming soon
+      </span>
     </div>
   );
 }
@@ -62,9 +79,39 @@ function Row({
   );
 }
 
+// Real referral code — only mounted when Privy is configured.
+function ReferralValue() {
+  const { referralCode } = useAppWallet();
+  return (
+    <span className="rounded-lg bg-elevated px-3 py-2 text-sm font-medium tracking-wide text-violet-300">
+      {referralCode ?? "—"}
+    </span>
+  );
+}
+
 export default function SettingsPage() {
-  const [theme, setTheme] = useState("System");
-  const [language, setLanguage] = useState("English");
+  // Theme: initialise to a stable label, then sync from storage after mount
+  // (avoids a server/client value mismatch).
+  const [themeLabel, setThemeLabel] = useState<string>(THEME_LABELS.system);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Defer out of the synchronous effect body to avoid a cascading render.
+    Promise.resolve().then(() => {
+      if (!cancelled) setThemeLabel(THEME_LABELS[getStoredTheme()]);
+    });
+    const unsub = subscribeSystemTheme(getStoredTheme);
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, []);
+
+  const onThemeChange = (label: string) => {
+    setThemeLabel(label);
+    const pref: ThemePref = labelToPref(label);
+    setTheme(pref);
+  };
 
   return (
     <AppShell>
@@ -80,7 +127,13 @@ export default function SettingsPage() {
               </svg>
             }
             label="Theme"
-            control={<Select options={["System", "Dark", "Light"]} value={theme} onChange={setTheme} />}
+            control={
+              <Select
+                options={[THEME_LABELS.system, THEME_LABELS.dark, THEME_LABELS.light]}
+                value={themeLabel}
+                onChange={onThemeChange}
+              />
+            }
           />
 
           <Row
@@ -90,13 +143,7 @@ export default function SettingsPage() {
               </svg>
             }
             label="Language"
-            control={
-              <Select
-                options={["English", "Español", "Français", "Deutsch", "中文"]}
-                value={language}
-                onChange={setLanguage}
-              />
-            }
+            control={<ComingSoon value="English" />}
           />
 
           <Row
@@ -106,7 +153,7 @@ export default function SettingsPage() {
               </svg>
             }
             label="Currency"
-            control={<Select options={["US Dollar"]} value="US Dollar" onChange={() => {}} disabled />}
+            control={<ComingSoon value="US Dollar" />}
           />
 
           <Row
@@ -118,9 +165,13 @@ export default function SettingsPage() {
             }
             label="Refer & Earn"
             control={
-              <span className="rounded-lg bg-elevated px-3 py-2 text-sm font-medium tracking-wide text-violet-200">
-                6KUGVZ
-              </span>
+              PRIVY_ENABLED ? (
+                <ReferralValue />
+              ) : (
+                <span className="rounded-lg bg-elevated px-3 py-2 text-sm font-medium tracking-wide text-violet-300">
+                  —
+                </span>
+              )
             }
           />
         </div>

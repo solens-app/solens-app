@@ -9,12 +9,35 @@ interface QuickReply {
     prompt: string;
 }
 
+interface PortfolioTokenRow {
+    symbol: string;
+    mint: string;
+    amount: number;
+    amountLabel: string;
+    usdValue: number | null;
+    usdLabel: string;
+}
+
+interface PortfolioView {
+    walletAddress: string;
+    solBalance: number;
+    solBalanceLabel: string;
+    solUsdValue: number | null;
+    solUsdLabel: string;
+    tokenCount: number;
+    tokens: PortfolioTokenRow[];
+    totalUsdValue: number | null;
+    totalUsdLabel: string;
+    pricesIncomplete: boolean;
+}
+
 interface Message {
     id: string;
     role: "user" | "assistant";
     content: string;
     action?: MessageAction;
     quickReplies?: QuickReply[];
+    portfolio?: PortfolioView;
 }
 
 interface SwapAction {
@@ -614,6 +637,7 @@ export default function ChatArea() {
                 content: data.message || data.error || "Something went wrong.",
                 action: data.action || undefined,
                 quickReplies: data.quickReplies || undefined,
+                portfolio: data.portfolio || undefined,
             };
             setMessages((prev) => [...prev, assistantMsg]);
         } catch {
@@ -814,6 +838,18 @@ export default function ChatArea() {
                                         )}
                                     </div>
                                 </div>
+
+                                {msg.portfolio && (
+                                    <div className="ml-[38px]">
+                                        <PortfolioCard
+                                            portfolio={msg.portfolio}
+                                            onBuy={(prompt) =>
+                                                handleSend(prompt)
+                                            }
+                                            disabled={isLoading}
+                                        />
+                                    </div>
+                                )}
 
                                 {msg.action &&
                                     !msg.action.cancelled &&
@@ -1085,6 +1121,94 @@ function ActionCard({
                     Cancel
                 </button>
             </div>
+        </div>
+    );
+}
+
+function PortfolioCard({
+    portfolio,
+    onBuy,
+    disabled,
+}: {
+    portfolio: PortfolioView;
+    onBuy: (prompt: string) => void;
+    disabled: boolean;
+}) {
+    const short = (a: string) =>
+        a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a;
+
+    return (
+        <div className="mt-2.5 max-w-[82%] overflow-hidden rounded-2xl border border-subtle bg-surface">
+            <div className="flex items-center justify-between border-b border-subtle px-4 py-2.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-300">
+                    Portfolio
+                </span>
+                <span className="font-mono text-xs text-text-secondary">
+                    {short(portfolio.walletAddress)}
+                </span>
+            </div>
+
+            {/* Total */}
+            <div className="flex items-baseline justify-between px-4 py-3">
+                <span className="text-sm text-text-secondary">Total value</span>
+                <span className="text-lg font-semibold text-white">
+                    {portfolio.totalUsdLabel}
+                </span>
+            </div>
+
+            {/* Holdings */}
+            <dl className="divide-y divide-subtle/60 border-t border-subtle px-4 py-1 text-sm">
+                <div className="flex items-center justify-between gap-3 py-2">
+                    <dt className="flex flex-col">
+                        <span className="text-white">SOL</span>
+                        <span className="text-xs text-text-secondary">
+                            {portfolio.solBalanceLabel}
+                        </span>
+                    </dt>
+                    <dd className="text-right text-white">
+                        {portfolio.solUsdLabel}
+                    </dd>
+                </div>
+
+                {portfolio.tokens.map((t) => (
+                    <div
+                        key={t.mint}
+                        className="flex items-center justify-between gap-3 py-2"
+                    >
+                        <dt className="flex min-w-0 flex-col">
+                            <span className="truncate text-white">
+                                {t.symbol}
+                            </span>
+                            <span className="text-xs text-text-secondary">
+                                {t.amountLabel}
+                            </span>
+                        </dt>
+                        <dd className="flex items-center gap-2">
+                            <span className="text-right text-white">
+                                {t.usdLabel}
+                            </span>
+                            <button
+                                onClick={() =>
+                                    onBuy(
+                                        `Swap 0.05 SOL for ${t.symbol} (mint: ${t.mint})`,
+                                    )
+                                }
+                                disabled={disabled}
+                                className="rounded-md border border-subtle px-2 py-1 text-xs text-text-secondary transition-colors hover:border-violet-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Buy more
+                            </button>
+                        </dd>
+                    </div>
+                ))}
+            </dl>
+
+            {portfolio.pricesIncomplete && (
+                <p className="px-4 pb-3 pt-1 text-xs text-text-secondary">
+                    Some token prices are unavailable right now, so the total is
+                    partial.
+                </p>
+            )}
         </div>
     );
 }

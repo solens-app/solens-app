@@ -178,6 +178,28 @@ const ACTION_TOOLS = new Set([
     "list_nft",
 ]);
 
+interface PortfolioTokenRow {
+    symbol: string;
+    mint: string;
+    amount: number;
+    amountLabel: string;
+    usdValue: number | null;
+    usdLabel: string;
+}
+
+interface PortfolioView {
+    walletAddress: string;
+    solBalance: number;
+    solBalanceLabel: string;
+    solUsdValue: number | null;
+    solUsdLabel: string;
+    tokenCount: number;
+    tokens: PortfolioTokenRow[];
+    totalUsdValue: number | null;
+    totalUsdLabel: string;
+    pricesIncomplete: boolean;
+}
+
 /** Compute USD values for a wallet overview in code, so the model never has to do the math itself. */
 async function computeWalletUsd(
     overview: Awaited<ReturnType<typeof getWalletOverview>>,
@@ -218,6 +240,47 @@ async function computeWalletUsd(
     };
 }
 
+/** Build a deterministic, fully-formatted portfolio card so numbers never depend on the model. */
+function buildPortfolioView(
+    overview: Awaited<ReturnType<typeof computeWalletUsd>>,
+    walletAddress: string,
+): PortfolioView {
+    const usd = (v: number | null): string =>
+        v === null ? "unavailable" : `$${v.toFixed(2)}`;
+
+    const tokens: PortfolioTokenRow[] = overview.tokens.map((t) => ({
+        symbol: t.symbol || `${t.mint.slice(0, 4)}…${t.mint.slice(-4)}`,
+        mint: t.mint,
+        amount: t.amount,
+        amountLabel: `${t.amountString ?? t.amount}`,
+        usdValue: t.usdValue,
+        usdLabel: usd(t.usdValue),
+    }));
+
+    return {
+        walletAddress,
+        solBalance: overview.solBalance,
+        solBalanceLabel: `${overview.solBalance.toFixed(4)} SOL`,
+        solUsdValue: overview.solUsdValue,
+        solUsdLabel: usd(overview.solUsdValue),
+        tokenCount: overview.tokenCount,
+        tokens,
+        totalUsdValue: overview.totalUsdValue,
+        totalUsdLabel: overview.pricesIncomplete
+            ? `${usd(overview.totalUsdValue === null ? sumKnown(overview) : overview.totalUsdValue)} (partial)`
+            : usd(overview.totalUsdValue),
+        pricesIncomplete: overview.pricesIncomplete,
+    };
+}
+
+/** Sum of the USD values we do have, used to show a partial total when some prices are missing. */
+function sumKnown(
+    overview: Awaited<ReturnType<typeof computeWalletUsd>>,
+): number {
+    const tokenSum = overview.tokens.reduce((s, t) => s + (t.usdValue ?? 0), 0);
+    return tokenSum + (overview.solUsdValue ?? 0);
+}
+
 const SYSTEM_PROMPT = `You are Solens, a friendly and knowledgeable AI crypto assistant on Solana. You help users understand their wallet, assets, and the Solana ecosystem.
 
 When users ask about their wallet or assets, use the available tools to fetch real-time data. Present information clearly and concisely. Format numbers nicely (e.g. 1.234 SOL). If a user has tokens, list them with their amounts.
@@ -240,6 +303,8 @@ When showing trending tokens:
 - To let the user buy one, they can tap a Buy button or ask to swap; use initiate_swap with the token's exact mint.
 
 ALWAYS fetch fresh data. Every time the user asks about their wallet, portfolio, balance, holdings, tokens, positions, or prices, you MUST call the relevant tool again and answer only from that fresh result. NEVER reuse balances, holdings, amounts, or prices from earlier in the conversation, even if they asked moments ago.
+
+For any portfolio / balance / "total value" request, call get_wallet_overview (a single call). The app renders the balances and USD values as a portfolio card from exact computed data, so keep your reply to a brief intro and do NOT restate the SOL balance, token amounts, or dollar values in text (the card already shows them accurately).
 
 ALWAYS use a tool to perform actions. For any swap, transfer, liquidity, launch, prediction, or NFT request you MUST call the matching tool (e.g. initiate_swap) BEFORE describing it. NEVER state a swap quote, estimated output, or "confirm in the UI" unless a tool returned that data in this same turn. If the user says "try again", "retry", or "do it again" after an action, call the tool again to build a fresh transaction.
 
@@ -904,6 +969,7 @@ interface ChatMessage {
 interface ChatResponse {
     message: string;
     quickReplies?: { label: string; prompt: string }[];
+    portfolio?: PortfolioView;
     action?:
         | {
               type: "transfer";
@@ -1287,6 +1353,7 @@ export async function POST(request: NextRequest) {
 
         let choice = response.choices[0];
         let pendingAction: ChatResponse["action"] | undefined;
+        let portfolioView: PortfolioView | undefined;
         let forcedActionRetryUsed = false;
         const toolResults: { name: string; result: unknown }[] = [];
 
@@ -1389,11 +1456,17 @@ export async function POST(request: NextRequest) {
                             result = await getTokenAccounts(walletAddress);
                             break;
 
-                        case "get_wallet_overview":
-                            result = await computeWalletUsd(
+                        case "get_wallet_overview": {
+                            const overview = await computeWalletUsd(
                                 await getWalletOverview(walletAddress),
                             );
+                            portfolioView = buildPortfolioView(
+                                overview,
+                                walletAddress,
+                            );
+                            result = overview;
                             break;
+                        }
 
                         case "get_token_price": {
                             const args = JSON.parse(
@@ -3011,7 +3084,17 @@ export async function POST(request: NextRequest) {
                 "Your transaction is ready. Review the details below and tap Confirm to proceed.";
         }
 
+        // When a portfolio card will render, the numbers come from the card (not the
+        // model), so keep the text to a short, number-free intro to avoid the model
+        // printing a mis-transcribed value alongside the correct card.
+        if (portfolioView) {
+            assistantMessage = "Here's your portfolio:";
+        }
+
         const chatResponse: ChatResponse = { message: assistantMessage };
+        if (portfolioView) {
+            chatResponse.portfolio = portfolioView;
+        }
         if (pendingAction) {
             chatResponse.action = pendingAction;
         }

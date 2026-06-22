@@ -89,6 +89,20 @@ export function canonicalEventType(actionOrEvent: string): CanonicalEvent | null
   return null;
 }
 
+/** Human-readable labels for activity event types (used by the History page). */
+export const EVENT_LABEL: Record<CanonicalEvent, string> = {
+  swap: "Swap",
+  transfer: "Transfer",
+  liquidity: "Liquidity",
+  token_launch: "Token Launch",
+  claim_fees: "Claim Fees",
+  prediction: "Prediction",
+  nft_buy: "NFT Purchase",
+  nft_list: "NFT Listing",
+  ai_message: "AI Message",
+  wallet_connect: "Wallet Connect",
+};
+
 // ---------------------------------------------------------------------------
 // Quest catalog — every quest is backed by a real, measurable signal
 // ---------------------------------------------------------------------------
@@ -285,6 +299,43 @@ async function loadUserData(wallet: string) {
 }
 
 type LoadedData = Awaited<ReturnType<typeof loadUserData>>;
+
+// ---------------------------------------------------------------------------
+// Activity history (on-chain transactions only)
+// ---------------------------------------------------------------------------
+
+export type ActivityEntry = {
+  id: string;
+  type: CanonicalEvent;
+  label: string;
+  signature: string | null;
+  ts: number;
+};
+
+/**
+ * The wallet's on-chain transaction history, newest first. Only events that
+ * correspond to a real, on-chain (and already-verified) transaction are
+ * returned — interaction events like wallet_connect / ai_message are excluded.
+ */
+export async function getOnchainActivity(wallet: string): Promise<ActivityEntry[]> {
+  if (!wallet) return [];
+  const sql = getSql();
+  const onchain = [...ONCHAIN_EVENTS];
+  const rows = (await sql`
+    select id, type, signature, created_at
+    from activity_events
+    where wallet = ${wallet} and type = any(${onchain})
+    order by created_at desc
+  `) as { id: number; type: CanonicalEvent; signature: string | null; created_at: string }[];
+
+  return rows.map((r) => ({
+    id: String(r.id),
+    type: r.type,
+    label: EVENT_LABEL[r.type] ?? r.type,
+    signature: r.signature,
+    ts: new Date(r.created_at).getTime(),
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // Requirement evaluation

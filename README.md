@@ -34,6 +34,10 @@ Telegram:
 - `NEXT_PUBLIC_APP_URL` - optional fallback base URL for Telegram link generation
 - `INTERNAL_API_BASE_URL` - optional internal base URL used by Telegram webhook to call `/api/chat` (defaults to `http://127.0.0.1:3000`)
 
+Points / rewards:
+
+- `DATABASE_URL` - **required for the Points page**; Neon (or any) Postgres connection string. Backs `users`, `activity_events`, and `quest_claims`. EP is only awarded for real, on-chain-verified actions and recorded interactions; without this the `/api/points/*` routes return 500. Server-only — never exposed to the browser.
+
 ## Telegram Bot Setup
 
 1. Create a Telegram bot with [@BotFather](https://t.me/BotFather) and copy the token.

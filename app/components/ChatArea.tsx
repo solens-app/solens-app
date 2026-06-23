@@ -3,6 +3,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePrivy, useToken } from "@privy-io/react-auth";
 import Markdown from "react-markdown";
+import {
+    recordPointsEvent,
+    captureRefFromUrl,
+    attributePendingRef,
+} from "@/app/lib/points-client";
 
 interface QuickReply {
     label: string;
@@ -426,6 +431,10 @@ export default function ChatArea() {
                     return;
                 }
                 setWalletAddress(data.address);
+                // Real interactions for the Points system: wallet connected,
+                // and attribute any pending referral code to this wallet.
+                recordPointsEvent(data.address, "wallet_connect");
+                attributePendingRef(data.address);
             } catch (e) {
                 if (cancelled) return;
                 setWalletError(
@@ -441,6 +450,11 @@ export default function ChatArea() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
+
+    // Remember a `?ref=CODE` from the landing URL until a wallet connects.
+    useEffect(() => {
+        captureRefFromUrl();
+    }, []);
 
     const executeConfirmedAction = useCallback(
         async (msg: Message) => {
@@ -539,6 +553,9 @@ export default function ChatArea() {
 
                 if (data.ok && data.signature) {
                     setFinishedActions((prev) => new Set(prev).add(msg.id));
+                    // Record the real, on-chain action for the Points system.
+                    // The server re-verifies the signature before awarding.
+                    recordPointsEvent(walletAddress, action.type, data.signature);
                     appendAssistant(
                         `${label} successful! [View on Solscan](https://solscan.io/tx/${data.signature})`,
                     );
@@ -614,6 +631,10 @@ export default function ChatArea() {
         setInput("");
         if (textareaRef.current) textareaRef.current.style.height = "auto";
         setIsLoading(true);
+
+        // Real interaction for the Points system (idempotent server-side, so
+        // only the first message per wallet ever counts toward "Say Hello").
+        recordPointsEvent(walletAddress, "ai_message");
 
         try {
             const history = messages.map((m) => ({

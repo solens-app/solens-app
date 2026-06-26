@@ -368,7 +368,7 @@ const suggestedPrompts: { text: string; highlight?: boolean }[] = [
 
 function SolensAvatar() {
     return (
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-600 text-sm font-extrabold lowercase text-white">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-600 text-sm font-extrabold lowercase text-on-brand">
             s
         </div>
     );
@@ -705,7 +705,7 @@ export default function ChatArea() {
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                         }}
-                        className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs text-text-secondary transition-colors hover:text-white"
+                        className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs text-text-secondary transition-colors hover:text-text-primary"
                         title="Copy address"
                     >
                         {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
@@ -779,7 +779,7 @@ export default function ChatArea() {
                                 <button
                                     key={text}
                                     onClick={() => handleSend(text)}
-                                    className={`rounded-xl px-4 py-2.5 text-left text-sm text-white transition-colors hover:bg-elevated ${
+                                    className={`rounded-xl px-4 py-2.5 text-left text-sm text-text-primary transition-colors hover:bg-elevated ${
                                         highlight
                                             ? "border border-violet-300 bg-elevated/40"
                                             : "bg-elevated/20"
@@ -803,7 +803,7 @@ export default function ChatArea() {
                                     <div
                                         className={`max-w-[82%] overflow-hidden break-words rounded-2xl px-4 py-2.5 text-sm ${
                                             msg.role === "user"
-                                                ? "bg-violet-500 text-white"
+                                                ? "bg-violet-500 text-on-brand"
                                                 : "border border-subtle bg-surface text-text-primary"
                                         }`}
                                     >
@@ -816,7 +816,7 @@ export default function ChatArea() {
                                                         </p>
                                                     ),
                                                     strong: ({ children }) => (
-                                                        <strong className="font-semibold text-white">
+                                                        <strong className="font-semibold text-text-primary">
                                                             {children}
                                                         </strong>
                                                     ),
@@ -904,7 +904,7 @@ export default function ChatArea() {
                                                         handleSend(qr.prompt)
                                                     }
                                                     disabled={isLoading}
-                                                    className="rounded-lg border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-all hover:border-violet-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                                    className="rounded-lg border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-all hover:border-violet-300 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                                                 >
                                                     {qr.label}
                                                 </button>
@@ -945,7 +945,7 @@ export default function ChatArea() {
                                     <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-violet-300">
                                         {ACTION_LABELS[action.type]}
                                     </div>
-                                    <div className="text-base text-white">
+                                    <div className="text-base text-text-primary">
                                         {summarizeAction(action)}
                                     </div>
                                 </div>
@@ -960,7 +960,7 @@ export default function ChatArea() {
                                                 {row.label}
                                             </dt>
                                             <dd
-                                                className={`break-all text-right text-white ${row.mono ? "font-mono text-xs" : ""}`}
+                                                className={`break-all text-right text-text-primary ${row.mono ? "font-mono text-xs" : ""}`}
                                             >
                                                 {row.value}
                                             </dd>
@@ -970,7 +970,7 @@ export default function ChatArea() {
                                         <dt className="text-text-secondary">
                                             Transactions
                                         </dt>
-                                        <dd className="text-white">
+                                        <dd className="text-text-primary">
                                             {txCount}
                                         </dd>
                                     </div>
@@ -978,7 +978,7 @@ export default function ChatArea() {
                                         <dt className="text-text-secondary">
                                             Network fee (est.)
                                         </dt>
-                                        <dd className="text-white">
+                                        <dd className="text-text-primary">
                                             ~{feeSol.toFixed(6)} SOL{" "}
                                             <span className="text-text-secondary">
                                                 ({feeLamports.toLocaleString()}{" "}
@@ -990,7 +990,7 @@ export default function ChatArea() {
                                         <dt className="text-text-secondary">
                                             Network
                                         </dt>
-                                        <dd className="text-white">
+                                        <dd className="text-text-primary">
                                             Solana mainnet
                                         </dd>
                                     </div>
@@ -998,7 +998,7 @@ export default function ChatArea() {
                                         <dt className="text-text-secondary">
                                             Signer
                                         </dt>
-                                        <dd className="font-mono text-xs text-white">
+                                        <dd className="font-mono text-xs text-text-primary">
                                             {walletAddress
                                                 ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-6)}`
                                                 : "—"}
@@ -1019,7 +1019,7 @@ export default function ChatArea() {
                                         disabled={
                                             actionPending === confirmingMsg.id
                                         }
-                                        className="rounded-lg bg-elevated px-4 py-2 text-sm text-text-secondary transition-colors hover:text-white disabled:opacity-50"
+                                        className="rounded-lg bg-elevated px-4 py-2 text-sm text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
                                     >
                                         Cancel
                                     </button>
@@ -1070,14 +1070,14 @@ export default function ChatArea() {
                             }
                             disabled={!authenticated || isLoading}
                             rows={1}
-                            className="max-h-[150px] flex-1 resize-none self-center bg-transparent px-1 text-sm text-white placeholder-text-secondary/70 outline-none disabled:cursor-not-allowed"
+                            className="max-h-[150px] flex-1 resize-none self-center bg-transparent px-1 text-sm text-text-primary placeholder-text-secondary/70 outline-none disabled:cursor-not-allowed"
                         />
                         <button
                             onClick={() => handleSend()}
                             disabled={
                                 !authenticated || !input.trim() || isLoading
                             }
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-violet-500 transition-opacity hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-500 text-on-brand transition-opacity hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed"
                             aria-label="Send"
                         >
                             <SendArrow className="h-4 w-4" />
@@ -1119,7 +1119,7 @@ function ActionCard({
                     >
                         <dt className="text-text-secondary">{row.label}</dt>
                         <dd
-                            className={`break-all text-right text-white ${row.mono ? "font-mono text-xs" : ""}`}
+                            className={`break-all text-right text-text-primary ${row.mono ? "font-mono text-xs" : ""}`}
                         >
                             {row.value}
                         </dd>
@@ -1137,7 +1137,7 @@ function ActionCard({
                 <button
                     onClick={onCancel}
                     disabled={pending}
-                    className="rounded-lg bg-elevated px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-elevated px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     Cancel
                 </button>
@@ -1172,7 +1172,7 @@ function PortfolioCard({
             {/* Total */}
             <div className="flex items-baseline justify-between px-4 py-3">
                 <span className="text-sm text-text-secondary">Total value</span>
-                <span className="text-lg font-semibold text-white">
+                <span className="text-lg font-semibold text-text-primary">
                     {portfolio.totalUsdLabel}
                 </span>
             </div>
@@ -1181,12 +1181,12 @@ function PortfolioCard({
             <dl className="divide-y divide-subtle/60 border-t border-subtle px-4 py-1 text-sm">
                 <div className="flex items-center justify-between gap-3 py-2">
                     <dt className="flex flex-col">
-                        <span className="text-white">SOL</span>
+                        <span className="text-text-primary">SOL</span>
                         <span className="text-xs text-text-secondary">
                             {portfolio.solBalanceLabel}
                         </span>
                     </dt>
-                    <dd className="text-right text-white">
+                    <dd className="text-right text-text-primary">
                         {portfolio.solUsdLabel}
                     </dd>
                 </div>
@@ -1197,7 +1197,7 @@ function PortfolioCard({
                         className="flex items-center justify-between gap-3 py-2"
                     >
                         <dt className="flex min-w-0 flex-col">
-                            <span className="truncate text-white">
+                            <span className="truncate text-text-primary">
                                 {t.symbol}
                             </span>
                             <span className="text-xs text-text-secondary">
@@ -1205,7 +1205,7 @@ function PortfolioCard({
                             </span>
                         </dt>
                         <dd className="flex items-center gap-2">
-                            <span className="text-right text-white">
+                            <span className="text-right text-text-primary">
                                 {t.usdLabel}
                             </span>
                             <button
@@ -1215,7 +1215,7 @@ function PortfolioCard({
                                     )
                                 }
                                 disabled={disabled}
-                                className="rounded-md border border-subtle px-2 py-1 text-xs text-text-secondary transition-colors hover:border-violet-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                className="rounded-md border border-subtle px-2 py-1 text-xs text-text-secondary transition-colors hover:border-violet-300 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 Buy more
                             </button>

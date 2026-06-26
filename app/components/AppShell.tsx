@@ -65,7 +65,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {showBanner && (
-          <div className="relative flex items-center justify-center bg-surface px-4 py-2.5 text-sm">
+          <div className="relative flex items-center justify-center bg-surface py-2.5 pl-16 pr-10 text-sm md:px-4">
             <span className="flex items-center gap-2 text-text-secondary">
               <span className="text-violet-300">✦</span>
               Level up your game with Solens and unlock new adventures!{" "}
@@ -75,7 +75,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </span>
             <button
               onClick={() => setShowBanner(false)}
-              className="absolute right-4 text-text-secondary/60 transition-colors hover:text-white"
+              className="absolute right-4 text-text-secondary/60 transition-colors hover:text-text-primary"
               aria-label="Dismiss"
             >
               ✕

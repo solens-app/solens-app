@@ -8,6 +8,11 @@ const PRICE_BASE_URL = "https://lite-api.jup.ag";
 // Well-known token mints
 const KNOWN_MINTS: Record<string, string> = {
     SOL: "So11111111111111111111111111111111111111112",
+    // Wrapped SOL shares the native SOL mint. Pinning it here prevents the
+    // fuzzy token search from matching a scam token that squats the "WSOL"
+    // symbol (those have near-zero price, so a swap "to WSOL" would mint a
+    // huge bag of a worthless token instead of wrapped SOL).
+    WSOL: "So11111111111111111111111111111111111111112",
     USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
     BONK: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
@@ -90,16 +95,40 @@ export async function resolveTokenMint(symbol: string): Promise<string | null> {
     const upper = query.toUpperCase();
     if (KNOWN_MINTS[upper]) return KNOWN_MINTS[upper];
 
-    // Try searching Jupiter token list, preferring an exact symbol match.
+    // Try searching Jupiter token list. Many scam tokens squat popular symbols,
+    // so we cannot just take the first result or the first exact-symbol match —
+    // those rank by query relevance, not legitimacy. Prefer a verified token,
+    // then the deepest-liquidity exact-symbol match, before falling back.
     try {
         const results = await jupiterFetch<
-            Array<{ id: string; symbol: string }>
+            Array<{
+                id: string;
+                symbol: string;
+                isVerified?: boolean;
+                liquidity?: number;
+            }>
         >(`/tokens/v2/search?query=${encodeURIComponent(query)}`);
         if (results.length > 0) {
-            const exact = results.find(
+            const liq = (r: { liquidity?: number }) =>
+                typeof r.liquidity === "number" ? r.liquidity : 0;
+            const exactMatches = results.filter(
                 (r) => r.symbol?.toUpperCase() === upper,
             );
-            return (exact ?? results[0]).id;
+            // 1) verified exact-symbol match with the most liquidity
+            const verifiedExact = exactMatches
+                .filter((r) => r.isVerified)
+                .sort((a, b) => liq(b) - liq(a))[0];
+            if (verifiedExact) return verifiedExact.id;
+            // 2) any verified match
+            const verifiedAny = results
+                .filter((r) => r.isVerified)
+                .sort((a, b) => liq(b) - liq(a))[0];
+            if (verifiedAny) return verifiedAny.id;
+            // 3) deepest-liquidity exact-symbol match
+            const bestExact = exactMatches.sort((a, b) => liq(b) - liq(a))[0];
+            if (bestExact) return bestExact.id;
+            // 4) last resort: most-liquid result for the query
+            return [...results].sort((a, b) => liq(b) - liq(a))[0].id;
         }
     } catch {
         // Fall through

@@ -156,7 +156,7 @@ function TelegramLinkInner() {
       <div className="glow-violet pointer-events-none absolute inset-x-0 bottom-0 h-[360px]" />
       <div className="relative w-full max-w-md space-y-5 rounded-2xl border border-subtle bg-surface p-6 shadow-2xl">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-600 text-base font-extrabold lowercase text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-violet-600 text-base font-extrabold lowercase text-on-brand">
             s
           </div>
           <h1 className="text-lg font-semibold">Link Telegram to Solens</h1>
@@ -173,7 +173,7 @@ function TelegramLinkInner() {
             <div className="font-semibold text-violet-200">
               You are about to link this Telegram identity:
             </div>
-            <div className="break-all font-mono text-white">{identityLabel}</div>
+            <div className="break-all font-mono text-text-primary">{identityLabel}</div>
             <div className="text-xs text-text-secondary">
               After linking, this Telegram chat will be able to request transactions
               that are signed by your Solens wallet. Only continue if this is your
@@ -195,7 +195,7 @@ function TelegramLinkInner() {
           <>
             <div className="text-sm text-text-secondary">
               Wallet:{" "}
-              <span className="font-mono text-white">
+              <span className="font-mono text-text-primary">
                 {walletAddress ?? (walletError ? "error" : "loading…")}
               </span>
             </div>
@@ -211,7 +211,7 @@ function TelegramLinkInner() {
                 disabled={!identity}
               />
               <span>
-                I confirm that <span className="font-mono text-white">{identityLabel ?? "(unknown)"}</span>{" "}
+                I confirm that <span className="font-mono text-text-primary">{identityLabel ?? "(unknown)"}</span>{" "}
                 is my own Telegram account and I want to bind it to my Solens wallet.
               </span>
             </label>

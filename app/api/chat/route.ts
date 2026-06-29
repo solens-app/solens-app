@@ -314,9 +314,14 @@ When showing a swap quote, clearly display:
 - What they're swapping (amount + token)
 - What they'll receive
 - Then tell them to confirm the swap in the UI
-- The 'amount' passed to initiate_swap is always in units of the INPUT token, never USD. If the user gives a dollar amount (e.g. "swap $6 of SOL"), first get the token's USD price (get_sol_balance returns usdValue for SOL, or use get_token_price), then divide to get the token amount. If no reliable price is available, ask the user to specify the amount in tokens instead of guessing.
+- initiate_swap takes EITHER 'amount' (in input-token units) OR 'amountUsd' (a dollar value). If the user gives a token amount (e.g. "swap 0.1 SOL"), pass amount=0.1. If the user gives a dollar amount (e.g. "swap $6 of SOL" or "$2.5 worth of SOL"), pass amountUsd=6 (or 2.5) and DO NOT pass amount — the backend converts dollars to the right token amount with a live price. Never compute the token amount from a dollar value yourself. Pass exactly one of the two.
 - If a swap request includes an explicit mint address (e.g. "Swap 0.05 SOL for FOO (mint: <mint>)"), pass that exact mint string as the outputToken so the correct token is bought.
 - Never say a swap is ready or present a quote unless initiate_swap returned success. If it returned an error, state the error plainly and do not invent numbers.
+
+When the user asks to "build", "create", or "diversify" a portfolio for a dollar amount (e.g. "build my portfolio worth $50", "diversify $20"):
+- Call build_portfolio with amountUsd (and a preset or token list if they specified one). Do NOT just call initiate_swap into a single token — that is not building a portfolio.
+- Present the returned allocation plan (each token and its dollar slice). Then ask the user to confirm they want to execute it.
+- To execute, run the legs one at a time: for each token in the plan call initiate_swap with inputToken = the plan's fundToken, outputToken = that token's symbol, and amountUsd = that leg's allocationUsd. Prepare ONE swap, let the user confirm it in the UI, then move to the next leg. Never claim a transaction is ready unless initiate_swap returned success.
 
 When showing USD values:
 - Use the usdValue, usdPrice, solUsdValue, and totalUsdValue fields returned by get_sol_balance and get_wallet_overview. These are computed exactly in code. Do not round a unit price first and then multiply yourself.
@@ -343,7 +348,8 @@ When helping with prediction markets:
 - Use search_prediction_events to find events by keyword or browse by category (crypto, sports, politics, esports, culture, economics, tech)
 - Show event titles, market prices (YES/NO), and implied probabilities
 - CRITICAL: Each market has a unique marketId (e.g. "POLY-1928733-0"). You MUST pass the EXACT marketId from the search results to buy_prediction. NEVER use event titles, numbers, or slugs as the marketId.
-- To place a bet: use buy_prediction with the exact marketId string, side (YES or NO), and amount in USD (minimum $1). Bets are paid with USDC or jupUSD and the backend automatically uses whichever the user has enough of (USDC preferred), so never tell the user they lack USDC without accounting for jupUSD.
+- To place a bet: use buy_prediction with the exact marketId string, side (YES or NO), and amountUsd (minimum $5). Bets are paid with USDC or jupUSD and the backend automatically uses whichever the user has enough of (USDC preferred), so never tell the user they lack USDC without accounting for jupUSD.
+- IMPORTANT — bet sizing: pass the EXACT dollar amount the user asked for as amountUsd (e.g. "bet $25 NO" → amountUsd=25). Do NOT shrink it toward the minimum. If the user does not state an amount, ASK them how much they want to bet (in USD) — never silently default to $5 (the minimum). There is no maximum beyond the user's stablecoin balance.
 - Use get_prediction_positions to see the user's open positions with P&L
 - Use sell_prediction to close/sell a position (sells all contracts)
 - Use claim_prediction to claim winnings from a settled market
@@ -523,10 +529,51 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                     amount: {
                         type: "number",
                         description:
-                            "The amount of the input token to swap (in human-readable units, e.g. 0.1 for 0.1 SOL)",
+                            "The amount of the INPUT token to swap, in human-readable token units (e.g. 0.1 for 0.1 SOL). Use this ONLY when the user specifies an amount in tokens. Do NOT compute this from a dollar amount yourself — use amountUsd instead.",
+                    },
+                    amountUsd: {
+                        type: "number",
+                        description:
+                            "The dollar value to swap, in USD (e.g. 2.5 for '$2.5 worth of SOL'). Use this whenever the user specifies a dollar amount. The backend converts USD to the correct input-token amount using a live price, so never divide by price yourself.",
                     },
                 },
-                required: ["inputToken", "outputToken", "amount"],
+                required: ["inputToken", "outputToken"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "build_portfolio",
+            description:
+                "Builds a diversified portfolio plan: splits a dollar amount across several reputable Solana tokens. Use when the user asks to 'build/create/diversify my portfolio' for a dollar amount (e.g. 'build my portfolio worth $50', 'diversify $20 into a basket'). This returns an ALLOCATION PLAN (no transaction). After showing the plan, execute it by calling initiate_swap once per token (inputToken = the funding token, outputToken = each basket token, amountUsd = that leg's allocation), confirming each with the user.",
+            parameters: {
+                type: "object",
+                properties: {
+                    amountUsd: {
+                        type: "number",
+                        description:
+                            "Total dollar amount to invest, in USD (e.g. 50 for $50).",
+                    },
+                    preset: {
+                        type: "string",
+                        enum: ["bluechip", "balanced", "degen"],
+                        description:
+                            "Optional risk preset. bluechip = SOL+JUP; balanced = SOL+JUP+JTO+BONK; degen = SOL+BONK+WIF. Defaults to balanced.",
+                    },
+                    tokens: {
+                        type: "array",
+                        items: { type: "string" },
+                        description:
+                            "Optional explicit list of token symbols to split across (overrides preset). e.g. ['SOL','JUP','JTO'].",
+                    },
+                    fundToken: {
+                        type: "string",
+                        description:
+                            "Optional token to fund the buys with (the token being spent). Defaults to USDC. Use 'SOL' if the user wants to build out of their SOL.",
+                    },
+                },
+                required: ["amountUsd"],
             },
         },
     },
@@ -1843,7 +1890,12 @@ export async function POST(request: NextRequest) {
                             const args = JSON.parse(
                                 toolCall.function.arguments,
                             );
-                            const { inputToken, outputToken, amount } = args;
+                            const {
+                                inputToken,
+                                outputToken,
+                                amount: amountArg,
+                                amountUsd,
+                            } = args;
 
                             try {
                                 const inputMint =
@@ -1870,6 +1922,50 @@ export async function POST(request: NextRequest) {
                                 const outputDecimals =
                                     getKnownDecimals(outputMint) ??
                                     (await getMintDecimals(outputMint));
+
+                                // Resolve the token amount to swap. When the user
+                                // asked in dollars, convert USD→token HERE using a
+                                // live price instead of trusting the model's
+                                // mental math (which has swapped whole balances).
+                                let amount_: number | undefined =
+                                    typeof amountArg === "number" &&
+                                    Number.isFinite(amountArg)
+                                        ? amountArg
+                                        : undefined;
+                                if (
+                                    amount_ === undefined &&
+                                    typeof amountUsd === "number" &&
+                                    Number.isFinite(amountUsd) &&
+                                    amountUsd > 0
+                                ) {
+                                    const [p] = await getTokenPrices([
+                                        inputMint,
+                                    ]);
+                                    const unitPrice = p
+                                        ? parseFloat(p.price)
+                                        : NaN;
+                                    if (
+                                        !Number.isFinite(unitPrice) ||
+                                        unitPrice <= 0
+                                    ) {
+                                        result = {
+                                            error: `Couldn't get a reliable USD price for ${inputToken} right now, so I can't convert $${amountUsd} to a token amount. Try specifying the amount in ${inputToken} instead.`,
+                                        };
+                                        break;
+                                    }
+                                    amount_ = amountUsd / unitPrice;
+                                }
+                                if (
+                                    amount_ === undefined ||
+                                    !Number.isFinite(amount_) ||
+                                    amount_ <= 0
+                                ) {
+                                    result = {
+                                        error: `Please specify how much ${inputToken} to swap (a token amount like '0.1 ${inputToken}' or a dollar amount like '$5 of ${inputToken}').`,
+                                    };
+                                    break;
+                                }
+                                const amount = amount_;
 
                                 // Keep enough SOL for the network/priority fee
                                 // (and possible ATA rent). For SOL-input swaps,
@@ -1946,6 +2042,132 @@ export async function POST(request: NextRequest) {
                                         ? error.message
                                         : "Swap order failed";
                                 result = { error: msg };
+                            }
+                            break;
+                        }
+
+                        case "build_portfolio": {
+                            const args = JSON.parse(
+                                toolCall.function.arguments,
+                            );
+                            const {
+                                amountUsd,
+                                preset,
+                                tokens: requestedTokens,
+                                fundToken,
+                            } = args;
+                            try {
+                                if (
+                                    typeof amountUsd !== "number" ||
+                                    !Number.isFinite(amountUsd) ||
+                                    amountUsd <= 0
+                                ) {
+                                    result = {
+                                        error: "Tell me how much to invest in USD, e.g. 'build a $50 portfolio'.",
+                                    };
+                                    break;
+                                }
+
+                                // Curated, reputable baskets so we never diversify
+                                // into a scam token. Symbols resolve via the
+                                // verified-preferring resolver.
+                                const PRESETS: Record<string, string[]> = {
+                                    bluechip: ["SOL", "JUP"],
+                                    balanced: ["SOL", "JUP", "JTO", "BONK"],
+                                    degen: ["SOL", "BONK", "WIF"],
+                                };
+                                const fundSymbol =
+                                    typeof fundToken === "string" && fundToken
+                                        ? fundToken
+                                        : "USDC";
+
+                                let basket: string[] =
+                                    Array.isArray(requestedTokens) &&
+                                    requestedTokens.length > 0
+                                        ? requestedTokens.map((s: unknown) =>
+                                              String(s),
+                                          )
+                                        : PRESETS[
+                                              String(preset || "").toLowerCase()
+                                          ] || PRESETS.balanced;
+                                // Don't buy the funding token with itself; dedupe.
+                                basket = [...new Set(basket)].filter(
+                                    (s) =>
+                                        s.toUpperCase() !==
+                                        fundSymbol.toUpperCase(),
+                                );
+                                if (basket.length === 0) {
+                                    result = {
+                                        error: "The basket is empty after removing the funding token. Specify a few tokens to diversify into.",
+                                    };
+                                    break;
+                                }
+
+                                const perLegUsd = amountUsd / basket.length;
+                                const mints = await Promise.all(
+                                    basket.map((s) => resolveTokenMint(s)),
+                                );
+                                const legs = basket
+                                    .map((symbol, i) => ({
+                                        symbol,
+                                        mint: mints[i],
+                                    }))
+                                    .filter(
+                                        (l): l is { symbol: string; mint: string } =>
+                                            Boolean(l.mint),
+                                    );
+                                if (legs.length === 0) {
+                                    result = {
+                                        error: "Couldn't resolve any of the basket tokens right now. Try again or specify different tokens.",
+                                    };
+                                    break;
+                                }
+
+                                const prices = await getTokenPrices(
+                                    legs.map((l) => l.mint),
+                                );
+                                const planLegs = legs.map((l) => {
+                                    const p = prices.find(
+                                        (x) => x.mint === l.mint,
+                                    );
+                                    const unit = p ? parseFloat(p.price) : null;
+                                    return {
+                                        symbol: l.symbol,
+                                        allocationUsd: Number(
+                                            perLegUsd.toFixed(2),
+                                        ),
+                                        estTokens:
+                                            unit && unit > 0
+                                                ? Number(
+                                                      (perLegUsd / unit).toPrecision(
+                                                          6,
+                                                      ),
+                                                  )
+                                                : null,
+                                    };
+                                });
+
+                                result = {
+                                    success: true,
+                                    plan: {
+                                        fundToken: fundSymbol,
+                                        totalUsd: Number(amountUsd.toFixed(2)),
+                                        weighting: "equal",
+                                        legs: planLegs,
+                                    },
+                                    message: `Portfolio plan for $${amountUsd.toFixed(2)} paid with ${fundSymbol}, split equally across ${planLegs
+                                        .map((l) => l.symbol)
+                                        .join(
+                                            ", ",
+                                        )} (~$${perLegUsd.toFixed(2)} each). This is a plan only — to execute, I will swap ${fundSymbol} into each token one at a time using initiate_swap (you confirm each in the UI). Ask me to start and I'll prepare the first swap.`,
+                                };
+                            } catch (error) {
+                                result = {
+                                    error:
+                                        error instanceof Error
+                                            ? error.message
+                                            : "Failed to build portfolio plan",
+                                };
                             }
                             break;
                         }

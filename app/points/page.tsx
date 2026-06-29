@@ -332,7 +332,7 @@ function InviteCard({ data }: { data: PointsState | null }) {
         <span className="font-medium tracking-wide text-violet-200">{code}</span>
         <button
           onClick={() => copy(code)}
-          className="flex items-center gap-1.5 text-text-secondary transition-colors hover:text-white"
+          className="flex items-center gap-1.5 text-text-secondary transition-colors hover:text-text-primary"
           aria-label="Copy referral code"
         >
           {copied && <span className="text-xs text-success">Copied!</span>}
@@ -344,13 +344,13 @@ function InviteCard({ data }: { data: PointsState | null }) {
       <div className="grid grid-cols-2 gap-3">
         <button
           onClick={shareOnX}
-          className="rounded-xl border border-transparent bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-white"
+          className="rounded-xl border border-transparent bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-text-primary"
         >
           𝕏 Share on X
         </button>
         <button
           onClick={shareIt}
-          className="rounded-xl border border-transparent bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-white"
+          className="rounded-xl border border-transparent bg-elevated py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:text-text-primary"
         >
           ↗ Share it
         </button>
@@ -572,6 +572,6 @@ function History({ entries, loading }: { entries: { id: string; ts: number; labe
 
 function tabClass(active: boolean) {
   return `pb-3 text-sm transition-colors ${
-    active ? "-mb-px border-b-2 border-violet-400 text-white" : "text-text-secondary/60 hover:text-text-secondary"
+    active ? "-mb-px border-b-2 border-violet-400 text-text-primary" : "text-text-secondary/60 hover:text-text-secondary"
   }`;
 }

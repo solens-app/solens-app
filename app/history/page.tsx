@@ -110,7 +110,7 @@ function HistoryView({
               PRIVY_ENABLED ? (
                 <button
                   onClick={onRequireAuth}
-                  className="mt-1 rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-500"
+                  className="mt-1 rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-on-brand transition-colors hover:bg-violet-500"
                 >
                   Connect Wallet
                 </button>

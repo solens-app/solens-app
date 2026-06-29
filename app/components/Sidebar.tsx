@@ -132,14 +132,14 @@ function Wordmark({ collapsed }: { collapsed: boolean }) {
     if (collapsed) {
         return (
             <div className="flex h-[26px] w-full items-center justify-center">
-                <span className="text-xl font-extrabold tracking-tight text-white">
+                <span className="text-xl font-extrabold tracking-tight text-text-primary">
                     s
                 </span>
             </div>
         );
     }
     return (
-        <span className="text-[22px] font-extrabold lowercase tracking-tight text-white">
+        <span className="text-[22px] font-extrabold lowercase tracking-tight text-text-primary">
             sol
             <span className="text-violet-400">e</span>
             ns
@@ -149,9 +149,11 @@ function Wordmark({ collapsed }: { collapsed: boolean }) {
 
 export default function Sidebar() {
     const [collapsed, setCollapsed] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
     const pathname = usePathname();
 
     return (
+        <>
         <aside
             className={`${collapsed ? "w-[72px]" : "w-60"} hidden h-full flex-col justify-between border-r border-subtle bg-base transition-[width] duration-200 md:flex`}
         >
@@ -162,7 +164,7 @@ export default function Sidebar() {
                     {collapsed && <Wordmark collapsed />}
                     <button
                         onClick={() => setCollapsed((c) => !c)}
-                        className={`${collapsed ? "hidden" : ""} flex items-center justify-center rounded-md bg-elevated p-1.5 text-text-secondary transition-colors hover:text-white`}
+                        className={`${collapsed ? "hidden" : ""} flex items-center justify-center rounded-md bg-elevated p-1.5 text-text-secondary transition-colors hover:text-text-primary`}
                         aria-label="Collapse sidebar"
                     >
                         <Icon.collapse className="h-5 w-5" />
@@ -183,8 +185,8 @@ export default function Sidebar() {
                                 title={collapsed ? label : undefined}
                                 className={`group flex items-center gap-2 rounded-lg p-3 text-sm font-medium transition-colors ${
                                     isActive
-                                        ? "bg-violet-500 text-white"
-                                        : "text-text-secondary hover:bg-elevated/60 hover:text-white"
+                                        ? "bg-violet-500 text-on-brand"
+                                        : "text-text-secondary hover:bg-elevated/60 hover:text-text-primary"
                                 } ${collapsed ? "justify-center" : ""}`}
                             >
                                 <ItemIcon className="h-4 w-4 shrink-0" />
@@ -207,7 +209,7 @@ export default function Sidebar() {
                     href="https://x.com/solens"
                     target="_blank"
                     rel="noreferrer"
-                    className="transition-colors hover:text-white"
+                    className="transition-colors hover:text-text-primary"
                     aria-label="X"
                 >
                     <Icon.x className="h-[18px] w-[18px]" />
@@ -216,7 +218,7 @@ export default function Sidebar() {
                     href="https://t.me/solens"
                     target="_blank"
                     rel="noreferrer"
-                    className="transition-colors hover:text-white"
+                    className="transition-colors hover:text-text-primary"
                     aria-label="Telegram"
                 >
                     <Icon.telegram className="h-5 w-5" />
@@ -225,12 +227,87 @@ export default function Sidebar() {
                     href="https://solens.app"
                     target="_blank"
                     rel="noreferrer"
-                    className="transition-colors hover:text-white"
+                    className="transition-colors hover:text-text-primary"
                     aria-label="Website"
                 >
                     <Icon.globe className="h-5 w-5" />
                 </a>
             </div>
         </aside>
+
+        {/* Mobile: floating menu button (the desktop sidebar is hidden < md). */}
+        <button
+            onClick={() => setMobileOpen(true)}
+            className="fixed left-3 top-3 z-40 grid h-10 w-10 place-items-center rounded-xl border border-subtle bg-surface/90 text-text-primary backdrop-blur transition-colors hover:bg-elevated md:hidden"
+            aria-label="Open menu"
+        >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
+
+        {/* Mobile drawer */}
+        <div
+            className={`fixed inset-0 z-50 md:hidden ${mobileOpen ? "" : "pointer-events-none"}`}
+            aria-hidden={!mobileOpen}
+        >
+            <div
+                className={`absolute inset-0 bg-black/60 transition-opacity duration-200 ${mobileOpen ? "opacity-100" : "opacity-0"}`}
+                onClick={() => setMobileOpen(false)}
+            />
+            <div
+                className={`absolute left-0 top-0 flex h-full w-64 max-w-[80%] flex-col justify-between border-r border-subtle bg-base shadow-2xl transition-transform duration-200 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+            >
+                <div>
+                    <div className="flex items-center justify-between px-4 py-[18px]">
+                        <Wordmark collapsed={false} />
+                        <button
+                            onClick={() => setMobileOpen(false)}
+                            className="grid h-8 w-8 place-items-center rounded-md bg-elevated text-text-secondary transition-colors hover:text-text-primary"
+                            aria-label="Close menu"
+                        >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </button>
+                    </div>
+                    <nav className="flex flex-col gap-2 px-4 pt-2">
+                        {navItems.map(({ label, icon: ItemIcon, href }) => {
+                            const isActive =
+                                href === "/"
+                                    ? pathname === "/"
+                                    : pathname.startsWith(href);
+                            return (
+                                <Link
+                                    key={label}
+                                    href={href}
+                                    onClick={() => setMobileOpen(false)}
+                                    className={`flex items-center gap-3 rounded-lg p-3 text-sm font-medium transition-colors ${
+                                        isActive
+                                            ? "bg-violet-500 text-on-brand"
+                                            : "text-text-secondary hover:bg-elevated/60 hover:text-text-primary"
+                                    }`}
+                                >
+                                    <ItemIcon className="h-4 w-4 shrink-0" />
+                                    <span className="whitespace-nowrap">{label}</span>
+                                </Link>
+                            );
+                        })}
+                    </nav>
+                </div>
+                <div className="flex items-center gap-6 p-4 text-text-secondary">
+                    <a href="https://x.com/solens" target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="X">
+                        <Icon.x className="h-[18px] w-[18px]" />
+                    </a>
+                    <a href="https://t.me/solens" target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="Telegram">
+                        <Icon.telegram className="h-5 w-5" />
+                    </a>
+                    <a href="https://solens.app" target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="Website">
+                        <Icon.globe className="h-5 w-5" />
+                    </a>
+                </div>
+            </div>
+        </div>
+        </>
     );
 }

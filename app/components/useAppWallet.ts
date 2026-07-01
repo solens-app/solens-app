@@ -11,7 +11,7 @@ import { usePrivy, useToken } from "@privy-io/react-auth";
  * configured, since it calls usePrivy/useToken.
  */
 export function useAppWallet() {
-  const { authenticated, login } = usePrivy();
+  const { authenticated, login, logout } = usePrivy();
   const { getAccessToken } = useToken();
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -52,5 +52,5 @@ export function useAppWallet() {
     };
   }, [authenticated, getAccessToken]);
 
-  return { authenticated, walletAddress, referralCode, login };
+  return { authenticated, walletAddress, referralCode, login, logout };
 }

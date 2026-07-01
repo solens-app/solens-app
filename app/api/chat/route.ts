@@ -285,6 +285,8 @@ const SYSTEM_PROMPT = `You are Solens, a friendly and knowledgeable AI crypto as
 
 When users ask about their wallet or assets, use the available tools to fetch real-time data. Present information clearly and concisely. Format numbers nicely (e.g. 1.234 SOL). If a user has tokens, list them with their amounts.
 
+Formatting: NEVER use Markdown tables (pipe "|" and "---" rows) — the chat UI does not render them and they show as raw text. When presenting a plan, allocation, breakdown, or any tabular data, use a Markdown bullet list instead, one item per line (e.g. "- SOL — $0.50 (0.0068 SOL)").
+
 You can help users with:
 0. Transferring SOL or SPL tokens to another wallet - use transfer_sol or transfer_token tools
 1. Token swaps using Jupiter DEX - use the initiate_swap tool
@@ -321,7 +323,11 @@ When showing a swap quote, clearly display:
 When the user asks to "build", "create", or "diversify" a portfolio for a dollar amount (e.g. "build my portfolio worth $50", "diversify $20"):
 - Call build_portfolio with amountUsd (and a preset or token list if they specified one). Do NOT just call initiate_swap into a single token — that is not building a portfolio.
 - Present the returned allocation plan (each token and its dollar slice). Then ask the user to confirm they want to execute it.
-- To execute, run the legs one at a time: for each token in the plan call initiate_swap with inputToken = the plan's fundToken, outputToken = that token's symbol, and amountUsd = that leg's allocationUsd. Prepare ONE swap, let the user confirm it in the UI, then move to the next leg. Never claim a transaction is ready unless initiate_swap returned success.
+- When the user confirms, call execute_portfolio with the SAME amountUsd, tokens, and fundToken. This hands the whole plan to the UI, which walks the user through confirming each swap in order. Do NOT call initiate_swap yourself for the legs, and do NOT describe individual swaps — execute_portfolio + the UI handle every leg.
+
+Splitting / multiswap (spreading one dollar amount across SEVERAL named tokens in a single request, e.g. "split $2 into SOL, JUP and WSOL", "swap $10 across A/B/C", "multiswap $20 to X,Y,Z"):
+- Call execute_portfolio with amountUsd = the total, tokens = the list of tokens, and fundToken = the token being spent (default USDC). NEVER call initiate_swap with the full amount into just the first token — that would ignore the split. execute_portfolio divides the amount equally and the UI runs each leg.
+- initiate_swap is ONLY for a single-token swap (one input → one output). Any request naming two or more destination tokens for one budget is a split → execute_portfolio.
 
 When showing USD values:
 - Use the usdValue, usdPrice, solUsdValue, and totalUsdValue fields returned by get_sol_balance and get_wallet_overview. These are computed exactly in code. Do not round a unit price first and then multiply yourself.
@@ -334,6 +340,7 @@ When helping with Meteora liquidity:
 - For checking positions: just call get_user_positions once — it automatically scans transaction history to find all positions. Do NOT search pools first or call it multiple times.
 - For removing liquidity, first use get_user_positions with the pool address to find the user's positions, then call remove_liquidity with the position address
 - Liquidity is added using a Spot strategy around the active bin (current price)
+- Opening a new liquidity position holds back about 0.06 SOL as rent (refundable when the position is closed) on top of the tokens being deposited. If the user doesn't have enough SOL for the full deposit, add_liquidity AUTO-SIZES the deposit down to the largest amount that fits and returns adjusted:true — when that happens, tell the user their deposit was reduced to fit their available SOL and to review the amounts on the confirmation card. If add_liquidity instead returns a not-enough-SOL error, relay the tool's message EXACTLY. Either way, never recompute, round, or invent the balance/amount numbers.
 - Always tell the user to confirm the transaction in the UI
 
 When helping with Bags token launches:
@@ -546,7 +553,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         function: {
             name: "build_portfolio",
             description:
-                "Builds a diversified portfolio plan: splits a dollar amount across several reputable Solana tokens. Use when the user asks to 'build/create/diversify my portfolio' for a dollar amount (e.g. 'build my portfolio worth $50', 'diversify $20 into a basket'). This returns an ALLOCATION PLAN (no transaction). After showing the plan, execute it by calling initiate_swap once per token (inputToken = the funding token, outputToken = each basket token, amountUsd = that leg's allocation), confirming each with the user.",
+                "Builds a diversified portfolio PLAN (no transaction): splits a dollar amount across several reputable Solana tokens and returns the allocation. Use when the user asks to 'build/create/diversify my portfolio' for a dollar amount (e.g. 'build my portfolio worth $50', 'diversify $20 into a basket'). Present the returned plan and ask the user to confirm. When they confirm, call execute_portfolio (NOT initiate_swap) to run all the legs.",
             parameters: {
                 type: "object",
                 properties: {
@@ -571,6 +578,42 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                         type: "string",
                         description:
                             "Optional token to fund the buys with (the token being spent). Defaults to USDC. Use 'SOL' if the user wants to build out of their SOL.",
+                    },
+                },
+                required: ["amountUsd"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "execute_portfolio",
+            description:
+                "Executes a multi-token split in one go: splits a dollar amount equally across the given tokens and hands the whole plan to the UI, which then swaps the funding token into each basket token one after another (the user confirms each swap in turn). Call this — NOT initiate_swap — whenever the user wants to spread a dollar amount across MORE THAN ONE token: e.g. after they confirm a build_portfolio plan, or for direct requests like 'split $2 into SOL, JUP and WSOL', 'swap $10 across A/B/C', 'multiswap $20 to X,Y,Z'. Never emulate a split by calling initiate_swap with the full amount into a single token. Use initiate_swap only for a single-token swap.",
+            parameters: {
+                type: "object",
+                properties: {
+                    amountUsd: {
+                        type: "number",
+                        description:
+                            "Total dollar amount to split across the tokens, in USD (e.g. 2 for $2).",
+                    },
+                    tokens: {
+                        type: "array",
+                        items: { type: "string" },
+                        description:
+                            "The token symbols (or mint addresses) to split across, e.g. ['SOL','JUP','WSOL']. Provide this OR a preset.",
+                    },
+                    preset: {
+                        type: "string",
+                        enum: ["bluechip", "balanced", "degen"],
+                        description:
+                            "Optional risk preset used only when the user didn't name specific tokens. bluechip = SOL+JUP; balanced = SOL+JUP+JTO+BONK; degen = SOL+BONK+WIF.",
+                    },
+                    fundToken: {
+                        type: "string",
+                        description:
+                            "Optional token to spend (the funding token). Defaults to USDC. Use 'SOL' to build out of the user's SOL.",
                     },
                 },
                 required: ["amountUsd"],
@@ -1106,6 +1149,14 @@ interface ChatResponse {
               price: number;
               nftName: string;
           };
+    // A multi-leg swap plan (portfolio build / "split $X across A,B,C"). The UI
+    // executes each leg in order, requesting a fresh quote and a confirmation per
+    // leg. Distinct from `action` because it carries several swaps, not one tx.
+    swapPlan?: {
+        fundToken: string;
+        totalUsd: number;
+        legs: { symbol: string; outputMint: string; amountUsd: number }[];
+    };
 }
 
 function generateQuickReplies(
@@ -1400,6 +1451,7 @@ export async function POST(request: NextRequest) {
 
         let choice = response.choices[0];
         let pendingAction: ChatResponse["action"] | undefined;
+        let pendingSwapPlan: ChatResponse["swapPlan"] | undefined;
         let portfolioView: PortfolioView | undefined;
         let forcedActionRetryUsed = false;
         const toolResults: { name: string; result: unknown }[] = [];
@@ -1463,12 +1515,14 @@ export async function POST(request: NextRequest) {
                         error: "No wallet connected. Please log in first.",
                     };
                 } else if (
-                    pendingAction &&
-                    ACTION_TOOLS.has(toolCall.function.name)
+                    (pendingAction || pendingSwapPlan) &&
+                    (ACTION_TOOLS.has(toolCall.function.name) ||
+                        toolCall.function.name === "execute_portfolio")
                 ) {
-                    // An action transaction is already prepared this turn. Do not
-                    // build another (a duplicate call can fail transiently and make
-                    // the reply claim failure even though the card is valid).
+                    // An action (single tx or a multi-leg swap plan) is already
+                    // prepared this turn. Do not build another (a duplicate call can
+                    // fail transiently and make the reply claim failure even though
+                    // the card is valid).
                     result = {
                         success: true,
                         message:
@@ -2172,6 +2226,120 @@ export async function POST(request: NextRequest) {
                             break;
                         }
 
+                        case "execute_portfolio": {
+                            const args = JSON.parse(
+                                toolCall.function.arguments,
+                            );
+                            const {
+                                amountUsd,
+                                preset,
+                                tokens: requestedTokens,
+                                fundToken,
+                            } = args;
+                            try {
+                                if (
+                                    typeof amountUsd !== "number" ||
+                                    !Number.isFinite(amountUsd) ||
+                                    amountUsd <= 0
+                                ) {
+                                    result = {
+                                        error: "Tell me how much to invest in USD, e.g. 'split $10 across SOL, JUP and BONK'.",
+                                    };
+                                    break;
+                                }
+
+                                // Same curated baskets as build_portfolio.
+                                const PRESETS: Record<string, string[]> = {
+                                    bluechip: ["SOL", "JUP"],
+                                    balanced: ["SOL", "JUP", "JTO", "BONK"],
+                                    degen: ["SOL", "BONK", "WIF"],
+                                };
+                                const fundSymbol =
+                                    typeof fundToken === "string" && fundToken
+                                        ? fundToken
+                                        : "USDC";
+
+                                let basket: string[] =
+                                    Array.isArray(requestedTokens) &&
+                                    requestedTokens.length > 0
+                                        ? requestedTokens.map((s: unknown) =>
+                                              String(s),
+                                          )
+                                        : PRESETS[
+                                              String(preset || "").toLowerCase()
+                                          ] || PRESETS.balanced;
+                                // Never buy the funding token with itself; dedupe.
+                                basket = [...new Set(basket)].filter(
+                                    (s) =>
+                                        s.toUpperCase() !==
+                                        fundSymbol.toUpperCase(),
+                                );
+                                if (basket.length === 0) {
+                                    result = {
+                                        error: "The basket is empty after removing the funding token. Name a few tokens to split across.",
+                                    };
+                                    break;
+                                }
+                                if (basket.length === 1) {
+                                    result = {
+                                        error: "A split needs at least two different tokens. For a single token, use a normal swap instead.",
+                                    };
+                                    break;
+                                }
+
+                                const perLegUsd = amountUsd / basket.length;
+                                const mints = await Promise.all(
+                                    basket.map((s) => resolveTokenMint(s)),
+                                );
+                                const legs = basket
+                                    .map((symbol, i) => ({
+                                        symbol,
+                                        outputMint: mints[i],
+                                        amountUsd: Number(
+                                            perLegUsd.toFixed(6),
+                                        ),
+                                    }))
+                                    .filter(
+                                        (
+                                            l,
+                                        ): l is {
+                                            symbol: string;
+                                            outputMint: string;
+                                            amountUsd: number;
+                                        } => Boolean(l.outputMint),
+                                    );
+                                if (legs.length === 0) {
+                                    result = {
+                                        error: "Couldn't resolve any of those tokens right now. Try again or name different tokens.",
+                                    };
+                                    break;
+                                }
+
+                                pendingSwapPlan = {
+                                    fundToken: fundSymbol,
+                                    totalUsd: Number(amountUsd.toFixed(2)),
+                                    legs,
+                                };
+
+                                result = {
+                                    success: true,
+                                    message: `Prepared ${legs.length} swaps splitting $${amountUsd.toFixed(2)} of ${fundSymbol} equally (~$${perLegUsd.toFixed(2)} each) into ${legs
+                                        .map((l) => l.symbol)
+                                        .join(
+                                            ", ",
+                                        )}. The user will confirm each swap in the UI, one after another.`,
+                                };
+                            } catch (error) {
+                                result = {
+                                    error:
+                                        error instanceof Error
+                                            ? error.message
+                                            : "Failed to prepare the portfolio swaps",
+                                };
+                            }
+                            break;
+                        }
+
                         case "search_meteora_pools": {
                             const args = JSON.parse(
                                 toolCall.function.arguments,
@@ -2345,21 +2513,32 @@ export async function POST(request: NextRequest) {
                                     pool.tokenYDecimals,
                                 );
 
+                                // The builder may auto-size the deposit down so
+                                // the SOL side fits after the position-rent
+                                // reserve — reflect the ACTUAL amounts everywhere.
+                                const finalX = txResult.amountX;
+                                const finalY = txResult.amountY;
+
                                 pendingAction = {
                                     type: "addLiquidity",
                                     transactions: txResult.transactions,
                                     poolAddress,
                                     positionAddress: txResult.positionAddress,
                                     poolName: pool.name,
-                                    amountX,
-                                    amountY,
+                                    amountX: finalX,
+                                    amountY: finalY,
                                     tokenXSymbol: pool.tokenXSymbol,
                                     tokenYSymbol: pool.tokenYSymbol,
                                 };
 
+                                const adjustNote = txResult.adjusted
+                                    ? ` Heads up: that was more than your available SOL allows after the ~0.06 SOL (refundable) position-rent reserve, so I auto-sized the deposit down to the largest amount that fits. Review the amounts on the card before confirming.`
+                                    : "";
+
                                 result = {
                                     success: true,
-                                    message: `Liquidity deposit prepared for ${pool.name}: ${amountX.toFixed(6)} ${pool.tokenXSymbol} + ${amountY.toFixed(6)} ${pool.tokenYSymbol}. Transaction ready for user to sign and confirm.`,
+                                    adjusted: txResult.adjusted,
+                                    message: `Liquidity deposit prepared for ${pool.name}: ${finalX.toFixed(6)} ${pool.tokenXSymbol} + ${finalY.toFixed(6)} ${pool.tokenYSymbol}.${adjustNote} Transaction ready for user to sign and confirm.`,
                                     positionAddress: txResult.positionAddress,
                                 };
                             } catch (error) {
@@ -3297,7 +3476,7 @@ export async function POST(request: NextRequest) {
         // If an action was successfully prepared (the confirm card will render),
         // the reply must not claim failure. Replace contradictory text.
         if (
-            pendingAction &&
+            (pendingAction || pendingSwapPlan) &&
             /\b(error|failed|fail|couldn'?t|could not|cannot|unable|insufficient|went wrong|problem|sorry)\b/i.test(
                 assistantMessage,
             )
@@ -3320,9 +3499,13 @@ export async function POST(request: NextRequest) {
         if (pendingAction) {
             chatResponse.action = pendingAction;
         }
+        if (pendingSwapPlan) {
+            chatResponse.swapPlan = pendingSwapPlan;
+        }
 
-        // Generate quick reply buttons from tool results (only when no pending action)
-        if (!pendingAction && toolResults.length > 0) {
+        // Generate quick reply buttons from tool results (only when no pending
+        // action or multi-leg swap plan is about to render).
+        if (!pendingAction && !pendingSwapPlan && toolResults.length > 0) {
             const qr = generateQuickReplies(toolResults);
             if (qr.length > 0) chatResponse.quickReplies = qr;
         }

@@ -34,7 +34,15 @@ export const TIERS: Tier[] = [
 // Event taxonomy
 // ---------------------------------------------------------------------------
 
-/** Canonical event types stored in `activity_events.type`. */
+/**
+ * Canonical event types stored in `activity_events.type`.
+ *
+ * Prediction is split three ways on purpose: `prediction` means *placing* an
+ * order (a bet), while closing a position (`prediction_sell`) and claiming a
+ * payout (`prediction_claim`) are separate actions. Keeping them distinct stops
+ * a single bet-then-sell from being counted as two prediction orders by the
+ * PREDICT quests, while all three still count as generic on-chain activity.
+ */
 export type CanonicalEvent =
   | "swap"
   | "transfer"
@@ -42,6 +50,8 @@ export type CanonicalEvent =
   | "token_launch"
   | "claim_fees"
   | "prediction"
+  | "prediction_sell"
+  | "prediction_claim"
   | "nft_buy"
   | "nft_list"
   | "ai_message"
@@ -56,8 +66,8 @@ export const ACTION_EVENT_MAP: Record<string, CanonicalEvent> = {
   launchToken: "token_launch",
   claimFees: "claim_fees",
   predictionOrder: "prediction",
-  sellPrediction: "prediction",
-  claimPrediction: "prediction",
+  sellPrediction: "prediction_sell",
+  claimPrediction: "prediction_claim",
   buyNFT: "nft_buy",
   listNFT: "nft_list",
 };
@@ -70,6 +80,8 @@ export const ONCHAIN_EVENTS = new Set<CanonicalEvent>([
   "token_launch",
   "claim_fees",
   "prediction",
+  "prediction_sell",
+  "prediction_claim",
   "nft_buy",
   "nft_list",
 ]);
@@ -96,7 +108,9 @@ export const EVENT_LABEL: Record<CanonicalEvent, string> = {
   liquidity: "Liquidity",
   token_launch: "Token Launch",
   claim_fees: "Claim Fees",
-  prediction: "Prediction",
+  prediction: "Prediction Order",
+  prediction_sell: "Prediction Sell",
+  prediction_claim: "Prediction Claim",
   nft_buy: "NFT Purchase",
   nft_list: "NFT Listing",
   ai_message: "AI Message",

@@ -157,7 +157,6 @@ export default function SettingsPage() {
           />
 
           <Row
-            last
             icon={
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 12v.01M4 12l9-9 7 7-9 9-7-7zm9 4l4-4" />
@@ -174,14 +173,38 @@ export default function SettingsPage() {
               )
             }
           />
+
+          <Row
+            last
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V18a2 2 0 01-2 2z" />
+              </svg>
+            }
+            label="Terms & Conditions"
+            control={
+              <a
+                href="/terms"
+                className="flex items-center gap-1.5 text-sm font-medium text-violet-300 transition-colors hover:text-violet-200"
+              >
+                View
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+                </svg>
+              </a>
+            }
+          />
         </div>
 
-        <button className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-500 py-3.5 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400">
+        <a
+          href="mailto:ask@heyelsa.ai?subject=Solens%20Support%20Request"
+          className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-500 py-3.5 text-sm font-semibold text-on-brand transition-colors hover:bg-violet-400"
+        >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
           Contact Support
-        </button>
+        </a>
       </div>
     </AppShell>
   );

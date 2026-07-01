@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
 import { useAppWallet } from "./useAppWallet";
 
@@ -23,17 +23,98 @@ function ReferralChip({ code }: { code: string }) {
 // Shows the app-managed wallet + the user's real referral code, so the header
 // matches the wallet that actually transacts and earns EP.
 function HeaderControls() {
-  const { authenticated, walletAddress, referralCode, login } = useAppWallet();
+  const { authenticated, walletAddress, referralCode, login, logout } = useAppWallet();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the account menu on any outside click.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [menuOpen]);
+
+  const copyAddress = async () => {
+    if (!walletAddress) return;
+    try {
+      await navigator.clipboard.writeText(walletAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  if (!authenticated || !walletAddress) {
+    return (
+      <>
+        {referralCode && <ReferralChip code={referralCode} />}
+        <button
+          onClick={() => login()}
+          className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-violet-600 transition-colors hover:bg-violet-50"
+        >
+          Login
+          <WalletIcon />
+        </button>
+      </>
+    );
+  }
+
   return (
     <>
       {referralCode && <ReferralChip code={referralCode} />}
-      <button
-        onClick={() => !authenticated && login()}
-        className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-violet-600 transition-colors hover:bg-violet-50"
-      >
-        {authenticated && walletAddress ? truncateAddress(walletAddress) : "Login"}
-        <WalletIcon />
-      </button>
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={() => setMenuOpen((o) => !o)}
+          className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-violet-600 transition-colors hover:bg-violet-50"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+        >
+          {truncateAddress(walletAddress)}
+          <WalletIcon />
+        </button>
+
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl bg-surface card-shadow"
+          >
+            <div className="border-b border-subtle px-4 py-3">
+              <p className="text-xs text-text-secondary/70">Signed in as</p>
+              <p className="mt-0.5 font-mono text-sm text-text-primary">{truncateAddress(walletAddress)}</p>
+            </div>
+            <button
+              onClick={copyAddress}
+              className="flex w-full items-center justify-between px-4 py-3 text-sm text-text-secondary transition-colors hover:bg-elevated hover:text-text-primary"
+              role="menuitem"
+            >
+              Copy address
+              {copied && <span className="text-xs text-success">Copied!</span>}
+            </button>
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                void logout();
+              }}
+              className="flex w-full items-center gap-2 border-t border-subtle px-4 py-3 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+              role="menuitem"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
+              </svg>
+              Log out
+            </button>
+          </div>
+        )}
+      </div>
     </>
   );
 }

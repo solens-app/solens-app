@@ -156,7 +156,7 @@ function PointsView({
             </button>
           ))}
         </div>
-        <a href="#" className="pb-3 text-sm text-violet-300 underline underline-offset-2 hover:text-violet-200">
+        <a href="/terms" className="pb-3 text-sm text-violet-300 underline underline-offset-2 hover:text-violet-200">
           Terms and Conditions
         </a>
       </div>

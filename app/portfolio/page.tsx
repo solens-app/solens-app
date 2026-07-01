@@ -5,6 +5,7 @@ import { usePrivy, useToken } from "@privy-io/react-auth";
 import AppShell from "../components/AppShell";
 import type { Portfolio } from "@/app/lib/portfolio";
 import type { ActivityEntry } from "@/app/lib/points";
+import type { PredictionPositionView } from "@/app/api/portfolio/predictions/route";
 
 const PRIVY_ENABLED = Boolean(process.env.NEXT_PUBLIC_PRIVY_APP_ID);
 
@@ -63,30 +64,38 @@ function PortfolioView({
 }) {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
+  const [predictions, setPredictions] = useState<PredictionPositionView[] | null>(null);
   const [dust, setDust] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!wallet) {
       setPortfolio(null);
       setActivity([]);
+      setPredictions([]);
       setLoading(false);
       return;
     }
+    setRefreshing(true);
     setLoading(true);
     try {
-      const [pRes, aRes] = await Promise.all([
+      const [pRes, aRes, prRes] = await Promise.all([
         fetch(`/api/portfolio?wallet=${encodeURIComponent(wallet)}`, { cache: "no-store" }),
         fetch(`/api/points/activity?wallet=${encodeURIComponent(wallet)}`, { cache: "no-store" }),
+        fetch(`/api/portfolio/predictions?wallet=${encodeURIComponent(wallet)}`, { cache: "no-store" }),
       ]);
       const pJson = await pRes.json();
       if (pRes.ok && pJson.portfolio) setPortfolio(pJson.portfolio as Portfolio);
       const aJson = await aRes.json();
       setActivity(Array.isArray(aJson.activity) ? aJson.activity : []);
+      const prJson = await prRes.json();
+      setPredictions(Array.isArray(prJson.positions) ? prJson.positions : []);
     } catch {
       /* keep prior data */
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [wallet]);
 
@@ -125,9 +134,23 @@ function PortfolioView({
         {wallet && (
           <button
             onClick={refresh}
-            className="rounded-xl border border-transparent bg-elevated px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-violet-300 hover:text-text-primary"
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-xl border border-transparent bg-elevated px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-violet-300 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
-            ↻ Refresh
+            <svg
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
         )}
       </div>
@@ -214,16 +237,13 @@ function PortfolioView({
         </div>
       </section>
 
-      {/* Positions / orders — integrations not yet wired; honest empty states */}
+      {/* Positions / orders */}
       <section className="grid gap-6 sm:grid-cols-2">
         <PlaceholderCard
           title="Liquidity positions"
           subtitle="Meteora DLMM positions you open will appear here."
         />
-        <PlaceholderCard
-          title="Prediction positions"
-          subtitle="Open prediction-market positions will appear here."
-        />
+        <PredictionPositions positions={predictions} loading={loading && !predictions} hasWallet={Boolean(wallet)} />
         <PlaceholderCard
           title="Perp positions"
           subtitle="Drift perps integration coming soon."
@@ -334,6 +354,80 @@ function PlaceholderCard({ title, subtitle }: { title: string; subtitle: string 
     <div className="rounded-2xl bg-surface card-shadow">
       <div className="border-b border-subtle px-5 py-3 text-sm font-semibold">{title}</div>
       <div className="px-5 py-8 text-center text-sm text-text-secondary/70">{subtitle}</div>
+    </div>
+  );
+}
+
+function PredictionPositions({
+  positions,
+  loading,
+  hasWallet,
+}: {
+  positions: PredictionPositionView[] | null;
+  loading: boolean;
+  hasWallet: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-surface card-shadow">
+      <div className="border-b border-subtle px-5 py-3 text-sm font-semibold">Prediction positions</div>
+
+      {!hasWallet ? (
+        <div className="px-5 py-8 text-center text-sm text-text-secondary/70">
+          Open prediction-market positions will appear here.
+        </div>
+      ) : loading ? (
+        <div className="space-y-3 px-5 py-5">
+          {[0, 1].map((i) => (
+            <div key={i} className="h-12 animate-pulse rounded-lg bg-elevated" />
+          ))}
+        </div>
+      ) : !positions || positions.length === 0 ? (
+        <div className="px-5 py-8 text-center text-sm text-text-secondary/70">
+          No open prediction positions. Place a bet to see it here.
+        </div>
+      ) : (
+        positions.map((p) => {
+          const pnl = p.pnlUsd !== null ? Number(p.pnlUsd) : null;
+          return (
+            <div
+              key={p.pubkey}
+              className="flex items-start justify-between gap-3 border-t border-subtle px-5 py-4 first:border-t-0"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      p.side === "YES" ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
+                    }`}
+                  >
+                    {p.side}
+                  </span>
+                  {p.claimable && (
+                    <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[11px] font-semibold text-violet-200">
+                      Claimable
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1.5 truncate text-sm font-medium">{p.market}</div>
+                <div className="truncate text-xs text-text-secondary/60">
+                  {p.contracts} contracts · cost ${p.costUsd}
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="font-medium">
+                  ${p.valueUsd !== null ? p.valueUsd : p.payoutUsd}
+                </div>
+                {pnl !== null && (
+                  <div className={`text-xs ${pnl >= 0 ? "text-success" : "text-danger"}`}>
+                    {pnl >= 0 ? "+" : ""}${p.pnlUsd}
+                    {p.pnlPercent !== null ? ` (${p.pnlPercent.toFixed(1)}%)` : ""}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

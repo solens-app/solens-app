@@ -54,6 +54,20 @@ interface SwapAction {
     amount: number;
     estimatedOutput: string | null;
     cancelled?: boolean;
+    // Set when this swap is one leg of a multi-token split/portfolio build. The
+    // UI walks the legs in order, preparing the next once this one confirms.
+    portfolio?: {
+        fundToken: string;
+        legs: { symbol: string; outputMint: string; amountUsd: number }[];
+        index: number;
+    };
+}
+
+// Shape of the multi-leg plan returned by /api/chat (execute_portfolio).
+interface SwapPlan {
+    fundToken: string;
+    totalUsd: number;
+    legs: { symbol: string; outputMint: string; amountUsd: number }[];
 }
 
 interface TransferAction {
@@ -456,6 +470,94 @@ export default function ChatArea() {
         captureRefFromUrl();
     }, []);
 
+    // Build one leg of a multi-token split/portfolio as a swap action. The
+    // dollar slice is converted to a token amount server-side (with a live
+    // price) so each leg is sized correctly. Returns null if the quote fails.
+    const buildLegAction = useCallback(
+        async (
+            plan: SwapPlan,
+            index: number,
+        ): Promise<{ action: SwapAction | null; error?: string }> => {
+            if (!walletAddress)
+                return { action: null, error: "Connect your wallet first." };
+            const leg = plan.legs[index];
+            try {
+                const res = await fetch("/api/swap/order", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        inputToken: plan.fundToken,
+                        outputToken: leg.outputMint,
+                        amountUsd: leg.amountUsd,
+                        walletAddress,
+                    }),
+                });
+                const d = await res.json();
+                if (!res.ok || !d.transaction || !d.requestId)
+                    return { action: null, error: d.error || d.detail };
+                return {
+                    action: {
+                        type: "swap",
+                        transaction: d.transaction,
+                        requestId: d.requestId,
+                        inputToken: plan.fundToken,
+                        outputToken: leg.symbol,
+                        amount:
+                            typeof d.amount === "number"
+                                ? d.amount
+                                : leg.amountUsd,
+                        estimatedOutput: d.estimatedOutput ?? null,
+                        portfolio: {
+                            fundToken: plan.fundToken,
+                            legs: plan.legs,
+                            index,
+                        },
+                    },
+                };
+            } catch {
+                return { action: null };
+            }
+        },
+        [walletAddress],
+    );
+
+    // Append the next leg of a split as its own confirmable swap card. The user
+    // confirms it, then executeConfirmedAction prepares the leg after it.
+    const appendPortfolioLeg = useCallback(
+        async (plan: SwapPlan, index: number) => {
+            const total = plan.legs.length;
+            const leg = plan.legs[index];
+            const { action, error } = await buildLegAction(plan, index);
+            // Insufficient balance is a hard failure — retrying won't help, so say
+            // so plainly instead of implying a transient quote hiccup.
+            const insufficientFunds =
+                !!error && /insufficient|not enough|balance/i.test(error);
+            const failureContent = insufficientFunds
+                ? `Couldn't prepare the ${leg.symbol} swap (leg ${index + 1} of ${total}): you don't have enough ${plan.fundToken} to fund this portfolio. Try a smaller amount, or fund it from a token you actually hold. (Retrying won't help until the balance is there.)`
+                : `Couldn't prepare the ${leg.symbol} swap (leg ${index + 1} of ${total}) right now — the quote failed. Ask me to retry the rest of the portfolio.`;
+            setMessages((prev) => [
+                ...prev,
+                action
+                    ? {
+                          id: `${Date.now()}-leg${index}`,
+                          role: "assistant",
+                          content: `Swap ${index + 1} of ${total}: ${plan.fundToken} → ${leg.symbol} (~$${leg.amountUsd.toFixed(2)}).${
+                              index + 1 < total
+                                  ? ` Confirm and I'll prepare ${plan.legs[index + 1].symbol} next.`
+                                  : " This is the final leg."
+                          }`,
+                          action,
+                      }
+                    : {
+                          id: `${Date.now()}-leg${index}-err`,
+                          role: "assistant",
+                          content: failureContent,
+                      },
+            ]);
+        },
+        [buildLegAction],
+    );
+
     const executeConfirmedAction = useCallback(
         async (msg: Message) => {
             if (!msg.action) return;
@@ -559,6 +661,27 @@ export default function ChatArea() {
                     appendAssistant(
                         `${label} successful! [View on Solscan](https://solscan.io/tx/${data.signature})`,
                     );
+                    // Part of a multi-token split: prepare the next leg (or finish).
+                    if (action.type === "swap" && action.portfolio) {
+                        const pf = action.portfolio;
+                        if (pf.index + 1 < pf.legs.length) {
+                            await appendPortfolioLeg(
+                                {
+                                    fundToken: pf.fundToken,
+                                    totalUsd: pf.legs.reduce(
+                                        (s, l) => s + l.amountUsd,
+                                        0,
+                                    ),
+                                    legs: pf.legs,
+                                },
+                                pf.index + 1,
+                            );
+                        } else {
+                            appendAssistant(
+                                `Portfolio complete — all ${pf.legs.length} swaps done. 🎉`,
+                            );
+                        }
+                    }
                 } else if (data.pending) {
                     // Submitted but not confirmed: do not claim success, but lock
                     // the action so it is not re-submitted while it lands.
@@ -582,7 +705,7 @@ export default function ChatArea() {
                 setActionPending(null);
             }
         },
-        [getAccessToken, walletAddress, finishedActions],
+        [getAccessToken, walletAddress, finishedActions, appendPortfolioLeg],
     );
 
     const handleActionCancel = useCallback(
@@ -661,6 +784,18 @@ export default function ChatArea() {
                 portfolio: data.portfolio || undefined,
             };
             setMessages((prev) => [...prev, assistantMsg]);
+
+            // A multi-token split/portfolio build: kick off the first leg. Each
+            // leg is a normal swap card; confirming one prepares the next.
+            const plan = data.swapPlan as SwapPlan | undefined;
+            if (
+                plan &&
+                Array.isArray(plan.legs) &&
+                plan.legs.length > 0 &&
+                walletAddress
+            ) {
+                await appendPortfolioLeg(plan, 0);
+            }
         } catch {
             setMessages((prev) => [
                 ...prev,

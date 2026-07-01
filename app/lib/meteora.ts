@@ -286,10 +286,34 @@ export interface AddLiquidityResult {
   transactions: string[]; // base64-encoded serialized transactions
   positionAddress: string;
   poolAddress: string;
+  amountX: number; // actual token-X amount deposited (may be auto-sized down)
+  amountY: number; // actual token-Y amount deposited (may be auto-sized down)
+  adjusted: boolean; // true when the deposit was shrunk to fit available SOL
 }
 
 // Minimum SOL needed for position rent + tx fees (~0.06 SOL)
 const MIN_SOL_FOR_POSITION = 0.06;
+
+/**
+ * Clear, actionable message for when the SOL side of a deposit doesn't fit.
+ * Spells out the real balance and the (refundable) position-rent reserve so the
+ * figure never looks like a wrong balance, and tells the user exactly what to do.
+ */
+function insufficientSolMessage(
+  solBalance: number,
+  availableForDeposit: number,
+  needed: number,
+): string {
+  const usable = Math.max(0, availableForDeposit);
+  const addMore = Math.max(0, needed - usable);
+  return (
+    `Not enough SOL for this deposit. Your SOL balance is ${solBalance.toFixed(4)} SOL, ` +
+    `but opening a new Meteora position holds back ~${MIN_SOL_FOR_POSITION} SOL as rent ` +
+    `(refundable when you close the position), leaving ~${usable.toFixed(4)} SOL for the SOL side. ` +
+    `This deposit needs ${needed.toFixed(4)} SOL. ` +
+    `Add ~${addMore.toFixed(4)} more SOL, or deposit a smaller amount (up to ~${usable.toFixed(4)} SOL worth).`
+  );
+}
 
 export async function buildAddLiquidityTx(
   poolAddress: string,
@@ -309,57 +333,61 @@ export async function buildAddLiquidityTx(
   const solBalanceInSol = solBalance / 1e9;
   if (solBalanceInSol < MIN_SOL_FOR_POSITION) {
     throw new Error(
-      `Insufficient SOL for transaction fees and position rent. You have ${solBalanceInSol.toFixed(4)} SOL but need at least ~${MIN_SOL_FOR_POSITION} SOL. Please add more SOL to your wallet first.`
+      `Not enough SOL to open a liquidity position. Your SOL balance is ${solBalanceInSol.toFixed(4)} SOL, but opening a new Meteora position needs about ${MIN_SOL_FOR_POSITION} SOL held as rent (this is refundable when you close the position). Add at least ~${(MIN_SOL_FOR_POSITION - solBalanceInSol).toFixed(4)} more SOL and try again.`
     );
   }
 
   const dlmm = await DLMM.create(connection, pool);
 
-  // Validate token balances before building the transaction
+  // Validate balances — and auto-size the deposit down to fit the user's SOL.
   const tokenXMint = dlmm.tokenX.publicKey;
   const tokenYMint = dlmm.tokenY.publicKey;
   const solMint = "So11111111111111111111111111111111111111112";
+  const xIsSol = tokenXMint.toBase58() === solMint;
+  const yIsSol = tokenYMint.toBase58() === solMint;
 
-  // Check token X balance
-  if (amountX > 0) {
-    if (tokenXMint.toBase58() === solMint) {
-      // For SOL, check native balance (minus rent reserve)
-      const solBal = solBalance / LAMPORTS_PER_SOL;
-      const available = solBal - MIN_SOL_FOR_POSITION;
-      if (amountX > available) {
-        throw new Error(
-          `Insufficient SOL. You want to deposit ${amountX} SOL but only have ~${available.toFixed(4)} SOL available (after reserving for fees/rent).`
-        );
-      }
-    } else {
-      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(user, { mint: tokenXMint });
-      const balance = tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount ?? 0;
-      if (amountX > balance) {
-        throw new Error(
-          `Insufficient token balance. You want to deposit ${amountX} but only have ${balance}.`
-        );
-      }
+  // The amounts we'll actually deposit — may be scaled down below.
+  let depoX = amountX;
+  let depoY = amountY;
+  let adjusted = false;
+
+  // SOL side: the balance minus the (refundable) position-rent reserve is what
+  // is left for the deposit itself. If the requested SOL side doesn't fit, scale
+  // BOTH sides down proportionally (preserving the pool ratio) so it goes through.
+  const solBal = solBalance / LAMPORTS_PER_SOL;
+  const availableSol = solBal - MIN_SOL_FOR_POSITION;
+  const solSide = xIsSol ? depoX : yIsSol ? depoY : 0;
+  if (solSide > 0) {
+    const MIN_DEPOSIT_SOL = 0.0005; // below this a position isn't worth opening
+    if (availableSol < MIN_DEPOSIT_SOL) {
+      throw new Error(insufficientSolMessage(solBal, availableSol, solSide));
+    }
+    if (solSide > availableSol) {
+      // 0.98 leaves a hair of margin against price rounding.
+      const factor = (availableSol * 0.98) / solSide;
+      depoX = depoX * factor;
+      depoY = depoY * factor;
+      adjusted = true;
     }
   }
 
-  // Check token Y balance
-  if (amountY > 0) {
-    if (tokenYMint.toBase58() === solMint) {
-      const solBal = solBalance / LAMPORTS_PER_SOL;
-      const available = solBal - MIN_SOL_FOR_POSITION;
-      if (amountY > available) {
-        throw new Error(
-          `Insufficient SOL. You want to deposit ${amountY} SOL but only have ~${available.toFixed(4)} SOL available (after reserving for fees/rent).`
-        );
-      }
-    } else {
-      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(user, { mint: tokenYMint });
-      const balance = tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount ?? 0;
-      if (amountY > balance) {
-        throw new Error(
-          `Insufficient token balance. You want to deposit ${amountY} but only have ${balance}.`
-        );
-      }
+  // Non-SOL sides must fit the wallet's SPL balance (after any auto-size).
+  if (!xIsSol && depoX > 0) {
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(user, { mint: tokenXMint });
+    const balance = tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount ?? 0;
+    if (depoX > balance) {
+      throw new Error(
+        `Insufficient token balance: you need ${depoX.toFixed(6)} but only have ${balance}.`
+      );
+    }
+  }
+  if (!yIsSol && depoY > 0) {
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(user, { mint: tokenYMint });
+    const balance = tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount ?? 0;
+    if (depoY > balance) {
+      throw new Error(
+        `Insufficient token balance: you need ${depoY.toFixed(6)} but only have ${balance}.`
+      );
     }
   }
 
@@ -373,8 +401,8 @@ export async function buildAddLiquidityTx(
   const minBinId = activeBinId - numBinsOneSide;
   const maxBinId = activeBinId + numBinsOneSide;
 
-  const totalXAmount = new BN(Math.floor(amountX * 10 ** tokenXDecimals));
-  const totalYAmount = new BN(Math.floor(amountY * 10 ** tokenYDecimals));
+  const totalXAmount = new BN(Math.floor(depoX * 10 ** tokenXDecimals));
+  const totalYAmount = new BN(Math.floor(depoY * 10 ** tokenYDecimals));
 
   const strategy: StrategyType = StrategyType.Spot;
 
@@ -409,6 +437,9 @@ export async function buildAddLiquidityTx(
     transactions: [base64Tx],
     positionAddress: positionKeypair.publicKey.toBase58(),
     poolAddress,
+    amountX: depoX,
+    amountY: depoY,
+    adjusted,
   };
 }
 

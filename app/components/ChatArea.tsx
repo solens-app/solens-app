@@ -407,7 +407,7 @@ function SendArrow({ className }: { className?: string }) {
 }
 
 export default function ChatArea() {
-    const { ready, authenticated, login } = usePrivy();
+    const { ready, authenticated, login, logout } = usePrivy();
     const { getAccessToken } = useToken();
     const [walletAddress, setWalletAddress] = useState<string | null>(null);
     const [walletError, setWalletError] = useState<string | null>(null);
@@ -420,8 +420,23 @@ export default function ChatArea() {
         () => new Set(),
     );
     const [copied, setCopied] = useState(false);
+    const [walletMenuOpen, setWalletMenuOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const walletMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close the account menu on any outside click (mirrors the header on the
+    // other pages).
+    useEffect(() => {
+        if (!walletMenuOpen) return;
+        const onClick = (e: MouseEvent) => {
+            if (walletMenuRef.current && !walletMenuRef.current.contains(e.target as Node)) {
+                setWalletMenuOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", onClick);
+        return () => document.removeEventListener("mousedown", onClick);
+    }, [walletMenuOpen]);
 
     useEffect(() => {
         if (!authenticated) {
@@ -834,46 +849,67 @@ export default function ChatArea() {
                         Login
                     </button>
                 ) : walletAddress ? (
-                    <button
-                        onClick={() => {
-                            navigator.clipboard.writeText(walletAddress);
-                            setCopied(true);
-                            setTimeout(() => setCopied(false), 2000);
-                        }}
-                        className="flex items-center gap-2 rounded-lg bg-elevated px-3 py-2 font-mono text-xs text-text-secondary transition-colors hover:text-text-primary"
-                        title="Copy address"
-                    >
-                        {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
-                        {copied ? (
-                            <svg
-                                className="h-3.5 w-3.5 text-success"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
+                    <div className="relative" ref={walletMenuRef}>
+                        <button
+                            onClick={() => setWalletMenuOpen((o) => !o)}
+                            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-violet-600 transition-colors hover:bg-violet-50"
+                            aria-haspopup="menu"
+                            aria-expanded={walletMenuOpen}
+                        >
+                            {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M5 13l4 4L19 7"
+                                    strokeWidth={1.5}
+                                    d="M3 10h18M3 10v8a2 2 0 002 2h14a2 2 0 002-2v-8M3 10l2-5h14l2 5M16 14h.01"
                                 />
                             </svg>
-                        ) : (
-                            <svg
-                                className="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                        </button>
+
+                        {walletMenuOpen && (
+                            <div
+                                role="menu"
+                                className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl bg-surface card-shadow"
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                />
-                            </svg>
+                                <div className="border-b border-subtle px-4 py-3">
+                                    <p className="text-xs text-text-secondary/70">Signed in as</p>
+                                    <p className="mt-0.5 font-mono text-sm text-text-primary">
+                                        {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(walletAddress);
+                                        setCopied(true);
+                                        setTimeout(() => setCopied(false), 1500);
+                                    }}
+                                    className="flex w-full items-center justify-between px-4 py-3 text-sm text-text-secondary transition-colors hover:bg-elevated hover:text-text-primary"
+                                    role="menuitem"
+                                >
+                                    Copy address
+                                    {copied && <span className="text-xs text-success">Copied!</span>}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setWalletMenuOpen(false);
+                                        void logout();
+                                    }}
+                                    className="flex w-full items-center gap-2 border-t border-subtle px-4 py-3 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+                                    role="menuitem"
+                                >
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                        />
+                                    </svg>
+                                    Log out
+                                </button>
+                            </div>
                         )}
-                    </button>
+                    </div>
                 ) : walletError ? (
                     <span className="text-xs text-danger" title={walletError}>
                         wallet error

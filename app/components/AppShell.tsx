@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
+import TradeFeed from "./TradeFeed";
 import { useAppWallet } from "./useAppWallet";
 
 const PRIVY_ENABLED = Boolean(process.env.NEXT_PUBLIC_PRIVY_APP_ID);
@@ -172,6 +173,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto w-full max-w-5xl">{children}</div>
         </main>
       </div>
+
+      <TradeFeed />
     </div>
   );
 }

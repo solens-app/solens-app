@@ -137,6 +137,46 @@ export async function resolveTokenMint(symbol: string): Promise<string | null> {
     return null;
 }
 
+export interface TokenMeta {
+    mint: string;
+    symbol: string;
+    name: string;
+    logo: string | null;
+    decimals: number;
+}
+
+/**
+ * Resolve a mint address to display metadata (symbol, name, icon) via the
+ * Jupiter token search. Used to label trades in the social feed. Returns null
+ * if the token can't be resolved; callers should fall back to a short mint.
+ */
+export async function getTokenMeta(mint: string): Promise<TokenMeta | null> {
+    const query = mint.trim();
+    if (!looksLikeMint(query)) return null;
+    try {
+        const results = await jupiterFetch<
+            Array<{
+                id: string;
+                symbol?: string;
+                name?: string;
+                icon?: string;
+                decimals?: number;
+            }>
+        >(`/tokens/v2/search?query=${encodeURIComponent(query)}`);
+        const hit = results.find((r) => r.id === query) ?? results[0];
+        if (!hit || !hit.symbol) return null;
+        return {
+            mint: query,
+            symbol: hit.symbol,
+            name: hit.name ?? hit.symbol,
+            logo: hit.icon ?? null,
+            decimals: typeof hit.decimals === "number" ? hit.decimals : getDecimals(query),
+        };
+    } catch {
+        return null;
+    }
+}
+
 export interface TokenPrice {
     mint: string;
     price: string;

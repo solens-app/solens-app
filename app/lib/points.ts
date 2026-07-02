@@ -352,6 +352,119 @@ export async function getOnchainActivity(wallet: string): Promise<ActivityEntry[
 }
 
 // ---------------------------------------------------------------------------
+// Social feed — platform-wide recent on-chain activity
+// ---------------------------------------------------------------------------
+
+/** Trade summary stored in `activity_events.meta.trade` (see trade-meta.ts). */
+export type FeedTrade = {
+  token: { mint: string; symbol: string; logo: string | null };
+  side: "buy" | "sell";
+  amount: number;
+  usd: number | null;
+};
+
+export type FeedEntry = {
+  id: string;
+  wallet: string;
+  short: string;
+  type: CanonicalEvent;
+  label: string;
+  signature: string | null;
+  trade: FeedTrade | null;
+  /** True once we've attempted to derive trade meta (so we don't retry forever). */
+  tried: boolean;
+  ts: number;
+};
+
+/** Narrow an unknown `meta.trade` blob into a FeedTrade, or null. */
+function readTrade(meta: unknown): FeedTrade | null {
+  if (!meta || typeof meta !== "object") return null;
+  const trade = (meta as Record<string, unknown>).trade;
+  if (!trade || typeof trade !== "object") return null;
+  const t = trade as Record<string, unknown>;
+  const token = t.token as Record<string, unknown> | undefined;
+  if (!token || typeof token.mint !== "string" || typeof token.symbol !== "string") return null;
+  if (t.side !== "buy" && t.side !== "sell") return null;
+  return {
+    token: {
+      mint: token.mint,
+      symbol: token.symbol,
+      logo: typeof token.logo === "string" ? token.logo : null,
+    },
+    side: t.side,
+    amount: typeof t.amount === "number" ? t.amount : 0,
+    usd: typeof t.usd === "number" ? t.usd : null,
+  };
+}
+
+/**
+ * Recent on-chain activity across *all* wallets, newest first — the data behind
+ * the social trade feed. Pass `before` (a millisecond timestamp) to page
+ * backwards. Interaction events are excluded; only real, verified on-chain
+ * actions surface. Returns an empty list rather than throwing if the DB is
+ * unreachable is the caller's concern — this assumes a configured DB.
+ */
+export async function getRecentActivity(limit = 30, before?: number): Promise<FeedEntry[]> {
+  const sql = getSql();
+  const onchain = [...ONCHAIN_EVENTS];
+  const cap = Math.min(Math.max(Math.floor(limit) || 30, 1), 100);
+
+  const rows = (await (before && Number.isFinite(before)
+    ? sql`
+        select id, wallet, type, signature, meta, created_at
+        from activity_events
+        where type = any(${onchain}) and created_at < ${new Date(before).toISOString()}
+        order by created_at desc
+        limit ${cap}
+      `
+    : sql`
+        select id, wallet, type, signature, meta, created_at
+        from activity_events
+        where type = any(${onchain})
+        order by created_at desc
+        limit ${cap}
+      `)) as {
+    id: number;
+    wallet: string;
+    type: CanonicalEvent;
+    signature: string | null;
+    meta: unknown;
+    created_at: string;
+  }[];
+
+  return rows.map((r) => ({
+    id: String(r.id),
+    wallet: r.wallet,
+    short: shortWallet(r.wallet),
+    type: r.type,
+    label: EVENT_LABEL[r.type] ?? r.type,
+    signature: r.signature,
+    trade: readTrade(r.meta),
+    tried: Boolean(
+      r.meta && typeof r.meta === "object" && (r.meta as Record<string, unknown>).tradeTried,
+    ),
+    ts: new Date(r.created_at).getTime(),
+  }));
+}
+
+/**
+ * Persist derived trade meta onto an existing event (feed back-fill). Always
+ * marks the row as `tradeTried` so a tx that couldn't be parsed isn't retried
+ * on every feed poll. Merges into the existing meta rather than replacing it.
+ */
+export async function setEventTrade(id: string, trade: FeedTrade | null): Promise<void> {
+  const numId = Number(id);
+  if (!Number.isFinite(numId)) return;
+  const sql = getSql();
+  const patch = trade ? { trade, tradeTried: true } : { tradeTried: true };
+  await sql`
+    update activity_events
+    set meta = coalesce(meta, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb
+    where id = ${numId}
+  `;
+}
+
+// ---------------------------------------------------------------------------
 // Requirement evaluation
 // ---------------------------------------------------------------------------
 

@@ -210,29 +210,31 @@ function PortfolioView({
           ) : activity.length === 0 ? (
             <EmptyState title="No activity yet" subtitle="Your swaps, transfers and more will show up here." />
           ) : (
-            activity.slice(0, 6).map((tx) => (
-              <div
-                key={tx.id}
-                className="flex items-center justify-between gap-3 border-t border-subtle px-4 py-4 first:border-t-0 sm:px-6"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium">{tx.label}</div>
-                  <div className="text-xs text-text-secondary/60">{relativeTime(tx.ts)}</div>
+            <div className="max-h-[26rem] overflow-y-auto">
+              {activity.map((tx) => (
+                <div
+                  key={tx.id}
+                  className="flex items-center justify-between gap-3 border-t border-subtle px-4 py-4 first:border-t-0 sm:px-6"
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium">{tx.label}</div>
+                    <div className="text-xs text-text-secondary/60">{relativeTime(tx.ts)}</div>
+                  </div>
+                  {tx.signature ? (
+                    <a
+                      href={`https://solscan.io/tx/${tx.signature}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success transition-colors hover:bg-success/20"
+                    >
+                      View
+                    </a>
+                  ) : (
+                    <span className="shrink-0 text-xs text-text-secondary/60">—</span>
+                  )}
                 </div>
-                {tx.signature ? (
-                  <a
-                    href={`https://solscan.io/tx/${tx.signature}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success transition-colors hover:bg-success/20"
-                  >
-                    View
-                  </a>
-                ) : (
-                  <span className="shrink-0 text-xs text-text-secondary/60">—</span>
-                )}
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </section>

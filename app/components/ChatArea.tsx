@@ -949,7 +949,11 @@ export default function ChatArea() {
                             {suggestedPrompts.map(({ text, highlight }) => (
                                 <button
                                     key={text}
-                                    onClick={() => handleSend(text)}
+                                    onClick={() =>
+                                        authenticated
+                                            ? handleSend(text)
+                                            : login()
+                                    }
                                     className={`rounded-xl px-4 py-2.5 text-left text-sm text-text-primary transition-colors hover:bg-elevated ${
                                         highlight
                                             ? "border border-violet-300 bg-elevated/40"

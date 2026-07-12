@@ -4,7 +4,9 @@
 FROM node:22-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
-RUN npm install -g pnpm@9
+# pnpm 10 to match the repo (ignoredBuiltDependencies lives in pnpm-workspace.yaml,
+# which is pnpm 10 config syntax; pnpm 9 misreads it as a workspace).
+RUN npm install -g pnpm@10
 
 # ---- Dependencies (cached unless the lockfile changes) ----
 FROM base AS deps
@@ -37,7 +39,20 @@ ENV NEXT_PUBLIC_PRIVY_APP_ID=$NEXT_PUBLIC_PRIVY_APP_ID \
     NEXT_PUBLIC_SOLANA_BROWSER_RPC_URL=$NEXT_PUBLIC_SOLANA_BROWSER_RPC_URL \
     NEXT_PUBLIC_SOLANA_RPC_SUBSCRIPTIONS_URL=$NEXT_PUBLIC_SOLANA_RPC_SUBSCRIPTIONS_URL \
     NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+# Next 16's "collect page data" evaluates route modules at build time, and several
+# routes construct SDK clients at module scope (OpenAI, etc.) that throw on missing
+# env. These placeholders only satisfy the build; server code reads process.env at
+# RUNTIME (server env is never inlined), so the real values come from the container.
+RUN OPENAI_API_KEY=sk-build-placeholder \
+    DATABASE_URL=postgresql://build:build@localhost:5432/build \
+    SOLANA_RPC_URL=https://api.mainnet-beta.solana.com \
+    JUPITER_API_KEY=build-placeholder \
+    MAGIC_EDEN_API_KEY=build-placeholder \
+    BAGS_API_KEY=build-placeholder \
+    PRIVY_APP_SECRET=build-placeholder \
+    TELEGRAM_BOT_TOKEN=build-placeholder \
+    TELEGRAM_WEBHOOK_SECRET=build-placeholder \
+    pnpm build
 
 # ---- Runner (small, non-root, standalone server) ----
 FROM base AS runner

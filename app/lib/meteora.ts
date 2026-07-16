@@ -1,6 +1,7 @@
 import { Connection, PublicKey, Keypair, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import DLMM, { StrategyType } from "@meteora-ag/dlmm";
 import BN from "bn.js";
+import { getTokenPrices } from "@/app/lib/jupiter";
 
 const RPC_URL = process.env.SOLANA_RPC_URL!;
 
@@ -136,11 +137,52 @@ export interface UserPosition {
 }
 
 /**
- * Find user positions by scanning recent transaction history for DLMM interactions,
- * then fetching each position account directly with getAccountInfo.
- * This avoids getProgramAccounts which is rate-limited on Alchemy free tier.
+ * List a user's DLMM positions, optionally filtered to one pool.
+ *
+ * Primary path uses the SDK's indexed `getAllLbPairPositionsByUser` (a single
+ * getProgramAccounts call), which reliably returns every position across every
+ * pool. If the RPC rejects getProgramAccounts (e.g. rate-limited free tiers),
+ * we fall back to the best-effort signature-history scan below.
  */
 export async function getUserPositionsForPool(
+  walletAddress: string,
+  poolAddress?: string,
+): Promise<UserPosition[]> {
+  try {
+    const connection = getConnection();
+    const userPubKey = new PublicKey(walletAddress);
+    const posMap = await DLMM.getAllLbPairPositionsByUser(connection, userPubKey);
+
+    const positions: UserPosition[] = [];
+    for (const [pool, info] of posMap) {
+      if (poolAddress && pool !== poolAddress) continue;
+      for (const p of info.lbPairPositionsData) {
+        positions.push({
+          poolAddress: pool,
+          positionAddress: p.publicKey.toBase58(),
+          minBinId: p.positionData.lowerBinId,
+          maxBinId: p.positionData.upperBinId,
+          totalXAmount: p.positionData.totalXAmount,
+          totalYAmount: p.positionData.totalYAmount,
+        });
+      }
+    }
+    return positions;
+  } catch (err) {
+    console.error(
+      "[meteora] getAllLbPairPositionsByUser failed; falling back to signature scan:",
+      err,
+    );
+    return scanUserPositionsFromHistory(walletAddress, poolAddress);
+  }
+}
+
+/**
+ * Fallback: find user positions by scanning recent transaction history for DLMM
+ * interactions, then fetching each position account directly with getAccountInfo.
+ * This avoids getProgramAccounts which is rate-limited on Alchemy free tier.
+ */
+async function scanUserPositionsFromHistory(
   walletAddress: string,
   poolAddress?: string,
 ): Promise<UserPosition[]> {
@@ -277,6 +319,114 @@ export async function getUserPositionsForPool(
   }
 
   return positions;
+}
+
+
+// --- DLMM: Portfolio summary (all pools) ---
+
+/**
+ * One row per pool for the Portfolio "Liquidity positions" card: display-ready
+ * token pair, deposited amounts (already scaled by decimals), and best-effort
+ * USD value. Multiple positions in the same pool are aggregated into one row.
+ */
+export interface UserPositionSummary {
+  poolAddress: string;
+  poolName: string;
+  tokenXSymbol: string;
+  tokenYSymbol: string;
+  amountX: string;
+  amountY: string;
+  valueUsd: string | null;
+  positionCount: number;
+}
+
+/**
+ * All of a wallet's DLMM positions, aggregated per pool and enriched with pool
+ * metadata (name/symbols/decimals via getPoolDetails) and USD value (Jupiter
+ * prices). Uses getUserPositionsForPool under the hood, so it inherits the
+ * SDK-first lookup with the signature-scan fallback.
+ */
+export async function getAllUserPositions(
+  walletAddress: string,
+): Promise<UserPositionSummary[]> {
+  const positions = await getUserPositionsForPool(walletAddress);
+  if (positions.length === 0) return [];
+
+  // Aggregate raw amounts per pool.
+  const rawByPool = new Map<
+    string,
+    { rawX: number; rawY: number; count: number }
+  >();
+  for (const pos of positions) {
+    const cur = rawByPool.get(pos.poolAddress) ?? { rawX: 0, rawY: 0, count: 0 };
+    cur.rawX += Number(pos.totalXAmount) || 0;
+    cur.rawY += Number(pos.totalYAmount) || 0;
+    cur.count += 1;
+    rawByPool.set(pos.poolAddress, cur);
+  }
+
+  // Fetch pool metadata for each pool (best-effort — null tolerated).
+  const poolAddresses = [...rawByPool.keys()];
+  const poolList = await Promise.all(
+    poolAddresses.map((a) => getPoolDetails(a).catch(() => null)),
+  );
+  const poolByAddress = new Map(poolAddresses.map((a, i) => [a, poolList[i]]));
+
+  // Price every distinct mint once (same helper the portfolio API uses).
+  const mints = new Set<string>();
+  for (const a of poolAddresses) {
+    const pool = poolByAddress.get(a);
+    if (pool) {
+      mints.add(pool.tokenX);
+      mints.add(pool.tokenY);
+    }
+  }
+  let prices: Awaited<ReturnType<typeof getTokenPrices>> = [];
+  try {
+    if (mints.size > 0) prices = await getTokenPrices([...mints]);
+  } catch {
+    prices = [];
+  }
+  const priceOf = (mint: string): number | null => {
+    const p = prices.find((x) => x.mint === mint);
+    return p ? parseFloat(p.price) : null;
+  };
+
+  const summaries: UserPositionSummary[] = [];
+  for (const [poolAddress, raw] of rawByPool) {
+    const pool = poolByAddress.get(poolAddress) ?? null;
+    const xDecimals = pool?.tokenXDecimals ?? 6;
+    const yDecimals = pool?.tokenYDecimals ?? 9;
+    const amountX = raw.rawX / 10 ** xDecimals;
+    const amountY = raw.rawY / 10 ** yDecimals;
+
+    let valueUsd: string | null = null;
+    if (pool) {
+      const xp = priceOf(pool.tokenX);
+      const yp = priceOf(pool.tokenY);
+      if (xp !== null || yp !== null) {
+        valueUsd = (amountX * (xp ?? 0) + amountY * (yp ?? 0)).toFixed(2);
+      }
+    }
+
+    summaries.push({
+      poolAddress,
+      poolName:
+        pool?.name ?? `${poolAddress.slice(0, 4)}…${poolAddress.slice(-4)}`,
+      tokenXSymbol: pool?.tokenXSymbol ?? "?",
+      tokenYSymbol: pool?.tokenYSymbol ?? "?",
+      amountX: amountX.toFixed(Math.min(xDecimals, 6)),
+      amountY: amountY.toFixed(Math.min(yDecimals, 6)),
+      valueUsd,
+      positionCount: raw.count,
+    });
+  }
+
+  // Highest USD value first; unpriced pools sink to the bottom.
+  summaries.sort(
+    (a, b) => Number(b.valueUsd ?? -1) - Number(a.valueUsd ?? -1),
+  );
+  return summaries;
 }
 
 

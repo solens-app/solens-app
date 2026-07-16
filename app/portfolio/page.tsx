@@ -6,6 +6,7 @@ import AppShell from "../components/AppShell";
 import type { Portfolio } from "@/app/lib/portfolio";
 import type { ActivityEntry } from "@/app/lib/points";
 import type { PredictionPositionView } from "@/app/api/portfolio/predictions/route";
+import type { LiquidityPositionView } from "@/app/api/portfolio/positions/route";
 
 const PRIVY_ENABLED = Boolean(process.env.NEXT_PUBLIC_PRIVY_APP_ID);
 
@@ -67,6 +68,7 @@ function PortfolioView({
   const [refreshing, setRefreshing] = useState(false);
   const [activity, setActivity] = useState<ActivityEntry[] | null>(null);
   const [predictions, setPredictions] = useState<PredictionPositionView[] | null>(null);
+  const [positions, setPositions] = useState<LiquidityPositionView[] | null>(null);
   const [dust, setDust] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -74,16 +76,18 @@ function PortfolioView({
       setPortfolio(null);
       setActivity([]);
       setPredictions([]);
+      setPositions([]);
       setLoading(false);
       return;
     }
     setRefreshing(true);
     setLoading(true);
     try {
-      const [pRes, aRes, prRes] = await Promise.all([
+      const [pRes, aRes, prRes, lpRes] = await Promise.all([
         fetch(`/api/portfolio?wallet=${encodeURIComponent(wallet)}`, { cache: "no-store" }),
         fetch(`/api/points/activity?wallet=${encodeURIComponent(wallet)}`, { cache: "no-store" }),
         fetch(`/api/portfolio/predictions?wallet=${encodeURIComponent(wallet)}`, { cache: "no-store" }),
+        fetch(`/api/portfolio/positions?wallet=${encodeURIComponent(wallet)}`, { cache: "no-store" }),
       ]);
       const pJson = await pRes.json();
       if (pRes.ok && pJson.portfolio) setPortfolio(pJson.portfolio as Portfolio);
@@ -91,6 +95,8 @@ function PortfolioView({
       setActivity(Array.isArray(aJson.activity) ? aJson.activity : []);
       const prJson = await prRes.json();
       setPredictions(Array.isArray(prJson.positions) ? prJson.positions : []);
+      const lpJson = await lpRes.json();
+      setPositions(Array.isArray(lpJson.positions) ? lpJson.positions : []);
     } catch {
       /* keep prior data */
     } finally {
@@ -241,10 +247,7 @@ function PortfolioView({
 
       {/* Positions / orders */}
       <section className="grid gap-6 sm:grid-cols-2">
-        <PlaceholderCard
-          title="Liquidity positions"
-          subtitle="Meteora DLMM positions you open will appear here."
-        />
+        <LiquidityPositions positions={positions} loading={loading && !positions} hasWallet={Boolean(wallet)} />
         <PredictionPositions positions={predictions} loading={loading && !predictions} hasWallet={Boolean(wallet)} />
         <PlaceholderCard
           title="Perp positions"
@@ -429,6 +432,69 @@ function PredictionPositions({
             </div>
           );
         })
+      )}
+    </div>
+  );
+}
+
+function LiquidityPositions({
+  positions,
+  loading,
+  hasWallet,
+}: {
+  positions: LiquidityPositionView[] | null;
+  loading: boolean;
+  hasWallet: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-surface card-shadow">
+      <div className="border-b border-subtle px-5 py-3 text-sm font-semibold">Liquidity positions</div>
+
+      {!hasWallet ? (
+        <div className="px-5 py-8 text-center text-sm text-text-secondary/70">
+          Meteora DLMM positions you open will appear here.
+        </div>
+      ) : loading ? (
+        <div className="space-y-3 px-5 py-5">
+          {[0, 1].map((i) => (
+            <div key={i} className="h-12 animate-pulse rounded-lg bg-elevated" />
+          ))}
+        </div>
+      ) : !positions || positions.length === 0 ? (
+        <div className="px-5 py-8 text-center text-sm text-text-secondary/70">
+          No open liquidity positions. Add liquidity to a Meteora pool to see it here.
+        </div>
+      ) : (
+        positions.map((p) => (
+          <div
+            key={p.poolAddress}
+            className="flex items-start justify-between gap-3 border-t border-subtle px-5 py-4 first:border-t-0"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[11px] font-semibold text-violet-200">
+                  DLMM
+                </span>
+                {p.positionCount > 1 && (
+                  <span className="text-[11px] text-text-secondary/60">{p.positionCount} positions</span>
+                )}
+              </div>
+              <div className="mt-1.5 truncate text-sm font-medium">{p.poolName}</div>
+              <div className="truncate text-xs text-text-secondary/60">
+                {p.amountX} {p.tokenXSymbol} · {p.amountY} {p.tokenYSymbol}
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="font-medium">
+                {p.valueUsd !== null ? (
+                  `$${p.valueUsd}`
+                ) : (
+                  <span className="text-text-secondary/60">—</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))
       )}
     </div>
   );

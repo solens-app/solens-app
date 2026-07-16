@@ -329,6 +329,10 @@ Splitting / multiswap (spreading one dollar amount across SEVERAL named tokens i
 - Call execute_portfolio with amountUsd = the total, tokens = the list of tokens, and fundToken = the token being spent (default USDC). NEVER call initiate_swap with the full amount into just the first token — that would ignore the split. execute_portfolio divides the amount equally and the UI runs each leg.
 - initiate_swap is ONLY for a single-token swap (one input → one output). Any request naming two or more destination tokens for one budget is a split → execute_portfolio.
 
+Consolidating / many-to-one (funneling SEVERAL of the user's tokens INTO a single destination token, e.g. "swap my USDC, BONK and JUP into SOL", "sell all my tokens into SOL", "consolidate/convert my holdings into USDC", "turn my dust into SOL"):
+- Call consolidate_tokens with inputTokens = the tokens to sell and outputToken = the single destination (default SOL). By default it sells the FULL balance of each input; only pass amounts/amountsUsd when the user gave specific per-token sizes. For "sell/convert everything", pass an empty inputTokens array (it will use every token the wallet holds).
+- Direction is the OPPOSITE of a split: execute_portfolio spreads ONE token across MANY (1 → many); consolidate_tokens gathers MANY into ONE (many → 1). Do NOT invert them, and do NOT call execute_portfolio for a many-to-one request. initiate_swap remains for a single input → single output only.
+
 When showing USD values:
 - Use the usdValue, usdPrice, solUsdValue, and totalUsdValue fields returned by get_sol_balance and get_wallet_overview. These are computed exactly in code. Do not round a unit price first and then multiply yourself.
 - If a tool reports pricesIncomplete or a null usdValue, tell the user the USD value is unavailable right now rather than estimating it.
@@ -617,6 +621,48 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                     },
                 },
                 required: ["amountUsd"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "consolidate_tokens",
+            description:
+                "Consolidates SEVERAL of the user's tokens into ONE destination token (many → 1): swaps each named input token into the same output. Call this — NOT initiate_swap or execute_portfolio — whenever the user wants to funnel MULTIPLE source tokens into a single token: e.g. 'swap my USDC, BONK and JUP into SOL', 'sell all my tokens into SOL', 'consolidate/convert my holdings into USDC', 'turn my dust into SOL'. By default it sells the FULL balance of each input. Direction matters: execute_portfolio spreads ONE token across many (1 → many); consolidate_tokens gathers many INTO one (many → 1). initiate_swap is for a single input → single output.",
+            parameters: {
+                type: "object",
+                properties: {
+                    inputTokens: {
+                        type: "array",
+                        items: { type: "string" },
+                        description:
+                            "The token symbols (or mint addresses) to SELL, e.g. ['USDC','BONK','JUP']. Omit or leave empty together with sellAll=true to sell every token the wallet holds.",
+                    },
+                    outputToken: {
+                        type: "string",
+                        description:
+                            "The single destination token to swap everything into. Defaults to SOL.",
+                    },
+                    sellAll: {
+                        type: "boolean",
+                        description:
+                            "Sell the full balance of each input token. Defaults to true. Set false only when the user gave specific per-token amounts.",
+                    },
+                    amounts: {
+                        type: "array",
+                        items: { type: "number" },
+                        description:
+                            "Optional per-input token amounts (token units), aligned 1:1 with inputTokens. Use ONLY when the user specified exact token amounts instead of selling everything.",
+                    },
+                    amountsUsd: {
+                        type: "array",
+                        items: { type: "number" },
+                        description:
+                            "Optional per-input dollar amounts, aligned 1:1 with inputTokens. Use ONLY when the user specified dollar amounts per input instead of selling everything.",
+                    },
+                },
+                required: ["inputTokens"],
             },
         },
     },
@@ -1155,7 +1201,18 @@ interface ChatResponse {
     swapPlan?: {
         fundToken: string;
         totalUsd: number;
-        legs: { symbol: string; outputMint: string; amountUsd: number }[];
+        legs: {
+            symbol: string;
+            outputMint: string;
+            amountUsd?: number;
+            // Present only on "consolidate" (many→1) legs: each leg sells a
+            // different input token into the shared output. `rawAmount` is the
+            // exact base-unit balance so "sell all" never over-/under-sizes.
+            inputMint?: string;
+            inputSymbol?: string;
+            rawAmount?: string;
+            inputDecimals?: number;
+        }[];
     };
 }
 
@@ -1517,7 +1574,8 @@ export async function POST(request: NextRequest) {
                 } else if (
                     (pendingAction || pendingSwapPlan) &&
                     (ACTION_TOOLS.has(toolCall.function.name) ||
-                        toolCall.function.name === "execute_portfolio")
+                        toolCall.function.name === "execute_portfolio" ||
+                        toolCall.function.name === "consolidate_tokens")
                 ) {
                     // An action (single tx or a multi-leg swap plan) is already
                     // prepared this turn. Do not build another (a duplicate call can
@@ -2335,6 +2393,278 @@ export async function POST(request: NextRequest) {
                                         error instanceof Error
                                             ? error.message
                                             : "Failed to prepare the portfolio swaps",
+                                };
+                            }
+                            break;
+                        }
+
+                        case "consolidate_tokens": {
+                            // Many → 1: sell several input tokens into ONE
+                            // destination. Each leg carries its own input mint
+                            // and an EXACT base-unit amount (rawAmount) so
+                            // unknown/Token-2022 mints are never mis-sized by the
+                            // decimals=9 fallback in the order route.
+                            const args = JSON.parse(toolCall.function.arguments);
+                            // `sellAll` is a model-facing hint only; the handler
+                            // infers "sell the whole balance" from the absence of
+                            // a per-leg amount/amountUsd, so it isn't read here.
+                            const { inputTokens, outputToken, amounts, amountsUsd } =
+                                args;
+                            try {
+                                const outRaw =
+                                    typeof outputToken === "string" && outputToken
+                                        ? outputToken
+                                        : "SOL";
+                                const outputMint =
+                                    await resolveTokenMint(outRaw);
+                                if (!outputMint) {
+                                    result = {
+                                        error: `Could not resolve the destination token: ${outRaw}`,
+                                    };
+                                    break;
+                                }
+                                const outSymbol =
+                                    outRaw.length > 20
+                                        ? `${outputMint.slice(0, 4)}…${outputMint.slice(-4)}`
+                                        : outRaw.toUpperCase();
+
+                                const overview =
+                                    await getWalletOverview(walletAddress);
+
+                                const explicitInputs =
+                                    Array.isArray(inputTokens) &&
+                                    inputTokens.length > 0
+                                        ? inputTokens.map((s: unknown) =>
+                                              String(s),
+                                          )
+                                        : [];
+                                // No explicit list → sell every held SPL token.
+                                const requested: {
+                                    symbol: string;
+                                    amount?: number;
+                                    amountUsd?: number;
+                                }[] =
+                                    explicitInputs.length > 0
+                                        ? explicitInputs.map((symbol, i) => ({
+                                              symbol,
+                                              amount:
+                                                  Array.isArray(amounts) &&
+                                                  typeof amounts[i] === "number"
+                                                      ? amounts[i]
+                                                      : undefined,
+                                              amountUsd:
+                                                  Array.isArray(amountsUsd) &&
+                                                  typeof amountsUsd[i] ===
+                                                      "number"
+                                                      ? amountsUsd[i]
+                                                      : undefined,
+                                          }))
+                                        : overview.tokens.map((t) => ({
+                                              symbol: t.mint,
+                                          }));
+
+                                const SWAP_SOL_FEE_RESERVE_LAMPORTS = 20_000_000; // ~0.02 SOL
+
+                                // Pass 1: resolve, dedupe, skip; collect balances.
+                                const seen = new Set<string>();
+                                const skipped: string[] = [];
+                                const candidates: {
+                                    inputMint: string;
+                                    inputSymbol: string;
+                                    decimals: number;
+                                    balanceRaw: bigint;
+                                    amount?: number;
+                                    amountUsd?: number;
+                                }[] = [];
+                                for (const req of requested) {
+                                    const inputMint = await resolveTokenMint(
+                                        req.symbol,
+                                    );
+                                    if (!inputMint) {
+                                        skipped.push(req.symbol);
+                                        continue;
+                                    }
+                                    // Skip the destination (dedupes wSOL→SOL too).
+                                    if (inputMint === outputMint) continue;
+                                    if (seen.has(inputMint)) continue;
+                                    seen.add(inputMint);
+
+                                    if (inputMint === NATIVE_SOL_MINT) {
+                                        const namedExplicitly =
+                                            explicitInputs.some(
+                                                (s) =>
+                                                    s.toUpperCase() === "SOL" ||
+                                                    s === NATIVE_SOL_MINT,
+                                            );
+                                        if (!namedExplicitly) continue; // never auto-drain gas
+                                        const bal =
+                                            await getSOLBalance(walletAddress);
+                                        const maxLamports =
+                                            BigInt(bal.lamports) -
+                                            BigInt(
+                                                SWAP_SOL_FEE_RESERVE_LAMPORTS,
+                                            );
+                                        if (maxLamports <= BigInt(0)) {
+                                            skipped.push(
+                                                "SOL (keeping ~0.02 for fees)",
+                                            );
+                                            continue;
+                                        }
+                                        candidates.push({
+                                            inputMint,
+                                            inputSymbol: "SOL",
+                                            decimals: 9,
+                                            balanceRaw: maxLamports,
+                                            amount: req.amount,
+                                            amountUsd: req.amountUsd,
+                                        });
+                                        continue;
+                                    }
+
+                                    const holding = overview.tokens.find(
+                                        (t) => t.mint === inputMint,
+                                    );
+                                    if (
+                                        !holding ||
+                                        BigInt(holding.rawAmount || "0") <=
+                                            BigInt(0)
+                                    ) {
+                                        skipped.push(
+                                            holding?.symbol || req.symbol,
+                                        );
+                                        continue;
+                                    }
+                                    candidates.push({
+                                        inputMint,
+                                        inputSymbol:
+                                            holding.symbol || req.symbol,
+                                        decimals: holding.decimals,
+                                        balanceRaw: BigInt(holding.rawAmount),
+                                        amount: req.amount,
+                                        amountUsd: req.amountUsd,
+                                    });
+                                }
+
+                                // Prices (for USD-sized legs + display total).
+                                let prices: Awaited<
+                                    ReturnType<typeof getTokenPrices>
+                                > = [];
+                                try {
+                                    prices = await getTokenPrices(
+                                        candidates.map((c) => c.inputMint),
+                                    );
+                                } catch {
+                                    prices = [];
+                                }
+                                const priceOf = (mint: string) => {
+                                    const p = prices.find(
+                                        (x) => x.mint === mint,
+                                    );
+                                    return p ? parseFloat(p.price) : NaN;
+                                };
+
+                                // Pass 2: size each leg to an exact base-unit amount.
+                                const legs: NonNullable<
+                                    ChatResponse["swapPlan"]
+                                >["legs"] = [];
+                                let totalUsd = 0;
+                                for (const c of candidates) {
+                                    let raw: bigint;
+                                    if (
+                                        typeof c.amount === "number" &&
+                                        c.amount > 0
+                                    ) {
+                                        const want = BigInt(
+                                            Math.round(
+                                                c.amount * 10 ** c.decimals,
+                                            ),
+                                        );
+                                        raw =
+                                            want > c.balanceRaw
+                                                ? c.balanceRaw
+                                                : want;
+                                    } else if (
+                                        typeof c.amountUsd === "number" &&
+                                        c.amountUsd > 0
+                                    ) {
+                                        const unit = priceOf(c.inputMint);
+                                        if (
+                                            !Number.isFinite(unit) ||
+                                            unit <= 0
+                                        ) {
+                                            skipped.push(
+                                                `${c.inputSymbol} (no price)`,
+                                            );
+                                            continue;
+                                        }
+                                        const want = BigInt(
+                                            Math.round(
+                                                (c.amountUsd / unit) *
+                                                    10 ** c.decimals,
+                                            ),
+                                        );
+                                        raw =
+                                            want > c.balanceRaw
+                                                ? c.balanceRaw
+                                                : want;
+                                    } else {
+                                        raw = c.balanceRaw; // sell the whole balance
+                                    }
+                                    if (raw <= BigInt(0)) {
+                                        skipped.push(c.inputSymbol);
+                                        continue;
+                                    }
+                                    legs.push({
+                                        symbol: outSymbol,
+                                        outputMint,
+                                        inputMint: c.inputMint,
+                                        inputSymbol: c.inputSymbol,
+                                        rawAmount: raw.toString(),
+                                        inputDecimals: c.decimals,
+                                    });
+                                    const unit = priceOf(c.inputMint);
+                                    if (Number.isFinite(unit)) {
+                                        totalUsd +=
+                                            (Number(raw) / 10 ** c.decimals) *
+                                            unit;
+                                    }
+                                }
+
+                                if (legs.length === 0) {
+                                    const note = skipped.length
+                                        ? ` (skipped: ${skipped.join(", ")})`
+                                        : "";
+                                    result = {
+                                        error: `Couldn't find any tokens with a swappable balance to convert into ${outSymbol}${note}. Name tokens you currently hold.`,
+                                    };
+                                    break;
+                                }
+
+                                pendingSwapPlan = {
+                                    fundToken: outSymbol,
+                                    totalUsd: Number(totalUsd.toFixed(2)),
+                                    legs,
+                                };
+
+                                const skippedNote = skipped.length
+                                    ? ` Skipped: ${skipped.join(", ")}.`
+                                    : "";
+                                result = {
+                                    success: true,
+                                    message: `Prepared ${legs.length} swap${
+                                        legs.length > 1 ? "s" : ""
+                                    } to consolidate ${legs
+                                        .map((l) => l.inputSymbol)
+                                        .join(
+                                            ", ",
+                                        )} into ${outSymbol}. The user will confirm each swap in the UI, one after another.${skippedNote}`,
+                                };
+                            } catch (error) {
+                                result = {
+                                    error:
+                                        error instanceof Error
+                                            ? error.message
+                                            : "Failed to prepare the consolidation swaps",
                                 };
                             }
                             break;

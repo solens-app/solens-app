@@ -45,6 +45,19 @@ interface Message {
     portfolio?: PortfolioView;
 }
 
+// One leg of a multi-swap plan. 1-to-many (execute_portfolio) legs carry only
+// `outputMint` + `amountUsd`. many-to-1 (consolidate_tokens) legs also carry a
+// per-leg input (`inputMint`/`inputSymbol`) and an exact base-unit `rawAmount`.
+interface SwapLeg {
+    symbol: string;
+    outputMint: string;
+    amountUsd?: number;
+    inputMint?: string;
+    inputSymbol?: string;
+    rawAmount?: string;
+    inputDecimals?: number;
+}
+
 interface SwapAction {
     type: "swap";
     transaction: string;
@@ -54,20 +67,27 @@ interface SwapAction {
     amount: number;
     estimatedOutput: string | null;
     cancelled?: boolean;
+    // Per-leg input mint + exact base-unit size, so quote-refresh retries stay
+    // exact and use the correct input (many-to-1 legs).
+    inputMint?: string;
+    rawAmount?: string;
     // Set when this swap is one leg of a multi-token split/portfolio build. The
     // UI walks the legs in order, preparing the next once this one confirms.
+    // `independent` legs (consolidate) have no inter-leg dependency, so the UI
+    // advances past a declined/failed one instead of abandoning the rest.
     portfolio?: {
         fundToken: string;
-        legs: { symbol: string; outputMint: string; amountUsd: number }[];
+        legs: SwapLeg[];
         index: number;
+        independent?: boolean;
     };
 }
 
-// Shape of the multi-leg plan returned by /api/chat (execute_portfolio).
+// Shape of the multi-leg plan returned by /api/chat (execute_portfolio / consolidate_tokens).
 interface SwapPlan {
     fundToken: string;
     totalUsd: number;
-    legs: { symbol: string; outputMint: string; amountUsd: number }[];
+    legs: SwapLeg[];
 }
 
 interface TransferAction {
@@ -496,14 +516,20 @@ export default function ChatArea() {
             if (!walletAddress)
                 return { action: null, error: "Connect your wallet first." };
             const leg = plan.legs[index];
+            // many-to-1 legs carry their own input mint + exact base-unit size;
+            // 1-to-many legs fall back to the shared funding token + USD slice.
+            const inputToken = leg.inputMint ?? plan.fundToken;
+            const inputLabel = leg.inputSymbol ?? plan.fundToken;
             try {
                 const res = await fetch("/api/swap/order", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        inputToken: plan.fundToken,
+                        inputToken,
                         outputToken: leg.outputMint,
-                        amountUsd: leg.amountUsd,
+                        ...(leg.rawAmount
+                            ? { rawAmount: leg.rawAmount }
+                            : { amountUsd: leg.amountUsd }),
                         walletAddress,
                     }),
                 });
@@ -515,17 +541,27 @@ export default function ChatArea() {
                         type: "swap",
                         transaction: d.transaction,
                         requestId: d.requestId,
-                        inputToken: plan.fundToken,
+                        inputToken: inputLabel,
+                        inputMint: leg.inputMint,
+                        rawAmount: leg.rawAmount,
                         outputToken: leg.symbol,
+                        // Prefer the exact base-unit balance for display (the
+                        // order route's echoed amount can mis-decimal unknown
+                        // mints); fall back to the route amount / USD slice.
                         amount:
-                            typeof d.amount === "number"
-                                ? d.amount
-                                : leg.amountUsd,
+                            leg.rawAmount &&
+                            typeof leg.inputDecimals === "number"
+                                ? Number(leg.rawAmount) /
+                                  10 ** leg.inputDecimals
+                                : typeof d.amount === "number"
+                                  ? d.amount
+                                  : (leg.amountUsd ?? 0),
                         estimatedOutput: d.estimatedOutput ?? null,
                         portfolio: {
                             fundToken: plan.fundToken,
                             legs: plan.legs,
                             index,
+                            independent: !!leg.inputMint,
                         },
                     },
                 };
@@ -542,23 +578,42 @@ export default function ChatArea() {
         async (plan: SwapPlan, index: number) => {
             const total = plan.legs.length;
             const leg = plan.legs[index];
+            // Direction-agnostic labels: `from → to`. 1-to-many legs sell the
+            // shared funding token; many-to-1 legs sell each leg's own input.
+            const fromSym = leg.inputSymbol ?? plan.fundToken;
+            const toSym = leg.symbol;
+            const nextLeg = plan.legs[index + 1];
+            const nextLabel = nextLeg
+                ? (nextLeg.inputSymbol ?? nextLeg.symbol)
+                : "";
+            const sizeLabel =
+                typeof leg.amountUsd === "number"
+                    ? `~$${leg.amountUsd.toFixed(2)}`
+                    : leg.rawAmount && typeof leg.inputDecimals === "number"
+                      ? `${(
+                            Number(leg.rawAmount) /
+                            10 ** leg.inputDecimals
+                        ).toLocaleString(undefined, {
+                            maximumFractionDigits: 6,
+                        })} ${fromSym}`
+                      : `all your ${fromSym}`;
             const { action, error } = await buildLegAction(plan, index);
             // Insufficient balance is a hard failure — retrying won't help, so say
             // so plainly instead of implying a transient quote hiccup.
             const insufficientFunds =
                 !!error && /insufficient|not enough|balance/i.test(error);
             const failureContent = insufficientFunds
-                ? `Couldn't prepare the ${leg.symbol} swap (leg ${index + 1} of ${total}): you don't have enough ${plan.fundToken} to fund this portfolio. Try a smaller amount, or fund it from a token you actually hold. (Retrying won't help until the balance is there.)`
-                : `Couldn't prepare the ${leg.symbol} swap (leg ${index + 1} of ${total}) right now — the quote failed. Ask me to retry the rest of the portfolio.`;
+                ? `Couldn't prepare the ${fromSym} → ${toSym} swap (leg ${index + 1} of ${total}): you don't have enough ${fromSym}. (Retrying won't help until the balance is there.)`
+                : `Couldn't prepare the ${fromSym} → ${toSym} swap (leg ${index + 1} of ${total}) right now — the quote failed. Ask me to retry the rest.`;
             setMessages((prev) => [
                 ...prev,
                 action
                     ? {
                           id: `${Date.now()}-leg${index}`,
                           role: "assistant",
-                          content: `Swap ${index + 1} of ${total}: ${plan.fundToken} → ${leg.symbol} (~$${leg.amountUsd.toFixed(2)}).${
+                          content: `Swap ${index + 1} of ${total}: ${fromSym} → ${toSym} (${sizeLabel}).${
                               index + 1 < total
-                                  ? ` Confirm and I'll prepare ${plan.legs[index + 1].symbol} next.`
+                                  ? ` Confirm and I'll prepare ${nextLabel} next.`
                                   : " This is the final leg."
                           }`,
                           action,
@@ -620,9 +675,13 @@ export default function ChatArea() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        inputToken: swap.inputToken,
+                        // Prefer the exact mint over the display symbol so unknown
+                        // memecoins re-quote correctly on a consolidate leg.
+                        inputToken: swap.inputMint ?? swap.inputToken,
                         outputToken: swap.outputToken,
-                        amount: swap.amount,
+                        ...(swap.rawAmount
+                            ? { rawAmount: swap.rawAmount }
+                            : { amount: swap.amount }),
                         walletAddress,
                     }),
                 });
@@ -676,7 +735,8 @@ export default function ChatArea() {
                     appendAssistant(
                         `${label} successful! [View on Solscan](https://solscan.io/tx/${data.signature})`,
                     );
-                    // Part of a multi-token split: prepare the next leg (or finish).
+                    // Part of a multi-token split/consolidation: prepare the next
+                    // leg (or finish).
                     if (action.type === "swap" && action.portfolio) {
                         const pf = action.portfolio;
                         if (pf.index + 1 < pf.legs.length) {
@@ -684,7 +744,7 @@ export default function ChatArea() {
                                 {
                                     fundToken: pf.fundToken,
                                     totalUsd: pf.legs.reduce(
-                                        (s, l) => s + l.amountUsd,
+                                        (s, l) => s + (l.amountUsd ?? 0),
                                         0,
                                     ),
                                     legs: pf.legs,
@@ -693,7 +753,7 @@ export default function ChatArea() {
                             );
                         } else {
                             appendAssistant(
-                                `Portfolio complete — all ${pf.legs.length} swaps done. 🎉`,
+                                `All ${pf.legs.length} swaps done. 🎉`,
                             );
                         }
                     }
@@ -711,6 +771,27 @@ export default function ChatArea() {
                     appendAssistant(
                         `${label} failed: ${data.error || data.detail || "unknown"}`,
                     );
+                    // Consolidate legs are independent — one failing shouldn't
+                    // abandon the rest; move on to the next input token.
+                    if (
+                        action.type === "swap" &&
+                        action.portfolio?.independent &&
+                        action.portfolio.index + 1 <
+                            action.portfolio.legs.length
+                    ) {
+                        const pf = action.portfolio;
+                        await appendPortfolioLeg(
+                            {
+                                fundToken: pf.fundToken,
+                                totalUsd: pf.legs.reduce(
+                                    (s, l) => s + (l.amountUsd ?? 0),
+                                    0,
+                                ),
+                                legs: pf.legs,
+                            },
+                            pf.index + 1,
+                        );
+                    }
                 }
             } catch (e) {
                 const errMsg =
@@ -724,10 +805,12 @@ export default function ChatArea() {
     );
 
     const handleActionCancel = useCallback(
-        (msgId: string, actionType: MessageAction["type"]) => {
+        (msg: Message) => {
+            const action = msg.action;
+            if (!action) return;
             setMessages((prev) =>
                 prev.map((m) =>
-                    m.id === msgId && m.action
+                    m.id === msg.id && m.action
                         ? {
                               ...m,
                               action: {
@@ -743,11 +826,31 @@ export default function ChatArea() {
                 {
                     id: Date.now().toString(),
                     role: "assistant",
-                    content: `${ACTION_LABELS[actionType]} cancelled.`,
+                    content: `${ACTION_LABELS[action.type]} cancelled.`,
                 },
             ]);
+            // Consolidate legs are independent — declining one shouldn't abandon
+            // the rest; prepare the next input token's swap.
+            if (
+                action.type === "swap" &&
+                action.portfolio?.independent &&
+                action.portfolio.index + 1 < action.portfolio.legs.length
+            ) {
+                const pf = action.portfolio;
+                appendPortfolioLeg(
+                    {
+                        fundToken: pf.fundToken,
+                        totalUsd: pf.legs.reduce(
+                            (s, l) => s + (l.amountUsd ?? 0),
+                            0,
+                        ),
+                        legs: pf.legs,
+                    },
+                    pf.index + 1,
+                );
+            }
         },
-        [],
+        [appendPortfolioLeg],
     );
 
     const handleSend = async (text?: string) => {
@@ -1060,10 +1163,7 @@ export default function ChatArea() {
                                                     setConfirmingMsg(msg)
                                                 }
                                                 onCancel={() =>
-                                                    handleActionCancel(
-                                                        msg.id,
-                                                        msg.action!.type,
-                                                    )
+                                                    handleActionCancel(msg)
                                                 }
                                             />
                                         </div>

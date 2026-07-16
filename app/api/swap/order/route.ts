@@ -8,7 +8,7 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const { inputToken, outputToken, amount, amountUsd, walletAddress } =
+    const { inputToken, outputToken, amount, amountUsd, rawAmount, walletAddress } =
       await request.json();
 
     if (!inputToken || !outputToken || !walletAddress) {
@@ -17,12 +17,16 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    // rawAmount is an exact base-unit balance (string) for "sell my whole
+    // balance" legs — it bypasses USD/decimal conversion entirely.
+    const hasRawAmount = typeof rawAmount === "string" && /^\d+$/.test(rawAmount) && rawAmount !== "0";
     if (
+      !hasRawAmount &&
       (typeof amount !== "number" || !Number.isFinite(amount)) &&
       (typeof amountUsd !== "number" || !Number.isFinite(amountUsd))
     ) {
       return NextResponse.json(
-        { error: "Provide either 'amount' (token units) or 'amountUsd' (dollars)." },
+        { error: "Provide 'rawAmount' (base units), 'amount' (token units), or 'amountUsd' (dollars)." },
         { status: 400 }
       );
     }
@@ -35,6 +39,25 @@ export async function POST(request: NextRequest) {
     const outputMint = await resolveTokenMint(outputToken);
     if (!outputMint) {
       return NextResponse.json({ error: `Could not resolve token: ${outputToken}` }, { status: 400 });
+    }
+
+    const decimals = getDecimals(inputMint);
+
+    // Exact "sell whole balance" path: use the base-unit amount verbatim (it
+    // already reflects the token's real decimals), skipping USD/decimal math
+    // that would mis-size unknown mints (getDecimals falls back to 9).
+    if (hasRawAmount) {
+      const order = await getSwapOrder(
+        inputMint,
+        outputMint,
+        0,
+        decimals,
+        walletAddress,
+        undefined,
+        rawAmount,
+      );
+      const humanAmount = Number(rawAmount) / 10 ** decimals;
+      return NextResponse.json({ ...order, amount: humanAmount });
     }
 
     // Resolve the input-token amount. When the caller passes a dollar value,
@@ -57,7 +80,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid swap amount." }, { status: 400 });
     }
 
-    const decimals = getDecimals(inputMint);
     const order = await getSwapOrder(inputMint, outputMint, tokenAmount, decimals, walletAddress);
 
     // Echo back the resolved human-readable input amount so the UI can display it.

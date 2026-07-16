@@ -261,8 +261,15 @@ export async function getSwapOrder(
     inputDecimals: number,
     taker: string,
     outputDecimals?: number,
+    // Exact base-unit amount as a string. When provided (e.g. "sell my whole
+    // balance" legs), it is used verbatim so we never round *up* past the real
+    // balance or mis-size a token whose decimals aren't in the known list.
+    rawAmountOverride?: string,
 ): Promise<SwapOrder> {
-    const rawAmount = Math.round(amount * 10 ** inputDecimals).toString();
+    const rawAmount =
+        rawAmountOverride && /^\d+$/.test(rawAmountOverride)
+            ? rawAmountOverride
+            : Math.round(amount * 10 ** inputDecimals).toString();
 
     const params = new URLSearchParams({
         inputMint,

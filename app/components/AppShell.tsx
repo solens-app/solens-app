@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import Sidebar from "./Sidebar";
 import TradeFeed from "./TradeFeed";
 import { useAppWallet } from "./useAppWallet";
@@ -151,9 +152,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="flex items-center gap-2 text-text-secondary">
               <span className="text-violet-300">✦</span>
               Level up your game with Solens and unlock new adventures!{" "}
-              <a href="#" className="text-violet-300 underline underline-offset-2 transition-colors hover:text-violet-200">
+              <Link
+                href="/points"
+                onClick={() => setShowBanner(false)}
+                className="text-violet-300 underline underline-offset-2 transition-colors hover:text-violet-200"
+              >
                 Check it out
-              </a>
+              </Link>
             </span>
             <button
               onClick={() => setShowBanner(false)}

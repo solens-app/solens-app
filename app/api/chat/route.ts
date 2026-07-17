@@ -50,6 +50,8 @@ import {
 import {
     createSolTransferTx,
     createSplTransferTx,
+    createWrapSolTx,
+    createUnwrapSolTx,
     getSystemAccountRentReserveLamports,
     uiAmountToRawUnits,
 } from "@/app/lib/transfer";
@@ -138,6 +140,108 @@ function findTokenHolding(
     );
 }
 
+type WrapAction = {
+    type: "wrapSol";
+    transaction: string;
+    direction: "wrap" | "unwrap";
+    amount: number;
+};
+
+/**
+ * Build a wrap (SOL → WSOL) or unwrap (WSOL → SOL) action. SOL and WSOL share a
+ * mint, so this is never a Jupiter swap. Shared by the `wrap_sol` tool and the
+ * `initiate_swap` fallback (when the model mistakenly asks to "swap" between
+ * them). For wrap, the SOL amount comes from `amount` (SOL units) or `amountUsd`
+ * (converted with a live price) and is clamped so the fee can still be paid.
+ */
+async function buildWrapUnwrapAction(params: {
+    spendWallet: string;
+    direction: "wrap" | "unwrap";
+    amount?: number;
+    amountUsd?: number;
+}): Promise<
+    { pendingAction: WrapAction; message: string } | { error: string }
+> {
+    const { spendWallet, direction, amount, amountUsd } = params;
+    const NATIVE_SOL = "So11111111111111111111111111111111111111112";
+
+    if (direction === "unwrap") {
+        const un = await createUnwrapSolTx({ ownerWallet: spendWallet });
+        const sol = un.lamports / LAMPORTS_PER_SOL;
+        if (sol <= 0) {
+            return {
+                error: "You don't have any Wrapped SOL (WSOL) to unwrap.",
+            };
+        }
+        return {
+            pendingAction: {
+                type: "wrapSol",
+                transaction: un.transaction,
+                direction: "unwrap",
+                amount: sol,
+            },
+            message: `Unwrap prepared: converting ${sol.toFixed(6)} Wrapped SOL (WSOL) back to native SOL. Transaction ready for user to sign and confirm.`,
+        };
+    }
+
+    // wrap: resolve the SOL amount from a token amount or a dollar value.
+    let sol: number | undefined =
+        typeof amount === "number" && Number.isFinite(amount) && amount > 0
+            ? amount
+            : undefined;
+    if (
+        sol === undefined &&
+        typeof amountUsd === "number" &&
+        Number.isFinite(amountUsd) &&
+        amountUsd > 0
+    ) {
+        const [p] = await getTokenPrices([NATIVE_SOL]);
+        const unitPrice = p ? parseFloat(p.price) : NaN;
+        if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+            return {
+                error: `Couldn't get a reliable SOL price right now, so I can't convert $${amountUsd} to a SOL amount. Try specifying the amount in SOL instead.`,
+            };
+        }
+        sol = amountUsd / unitPrice;
+    }
+    if (sol === undefined || !Number.isFinite(sol) || sol <= 0) {
+        return {
+            error: "Tell me how much SOL to wrap (e.g. 'wrap 0.1 SOL' or 'wrap $5 of SOL').",
+        };
+    }
+
+    // Keep a little SOL for the network fee + WSOL account rent.
+    const WRAP_FEE_RESERVE_LAMPORTS = 5_000_000; // ~0.005 SOL
+    const balance = await getSOLBalance(spendWallet);
+    const requested = Math.round(sol * LAMPORTS_PER_SOL);
+    const maxLamports = balance.lamports - WRAP_FEE_RESERVE_LAMPORTS;
+    if (maxLamports <= 0) {
+        return {
+            error: `Not enough SOL to wrap after keeping ~${(WRAP_FEE_RESERVE_LAMPORTS / LAMPORTS_PER_SOL).toFixed(3)} SOL for the network fee. Balance: ${balance.sol.toFixed(6)} SOL.`,
+        };
+    }
+    let lamports = requested;
+    let clampNote = "";
+    if (lamports > maxLamports) {
+        lamports = maxLamports;
+        clampNote = ` Amount reduced to ${(lamports / LAMPORTS_PER_SOL).toFixed(6)} SOL so you keep enough SOL for the network fee.`;
+    }
+    const wrapped = await createWrapSolTx({
+        ownerWallet: spendWallet,
+        lamports,
+    });
+    const solWrapped = lamports / LAMPORTS_PER_SOL;
+    return {
+        pendingAction: {
+            type: "wrapSol",
+            transaction: wrapped.transaction,
+            direction: "wrap",
+            amount: solWrapped,
+        },
+        message: `Wrap prepared: converting ${solWrapped.toFixed(6)} SOL into Wrapped SOL (WSOL).${clampNote} Transaction ready for user to sign and confirm.`,
+    };
+}
+
 const NATIVE_SOL_MINT = "So11111111111111111111111111111111111111112";
 const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const JUPUSD_MINT = "JuprjznTrTSp2UFa3ZBUFgwdAmtZCq4MQCwysN55USD";
@@ -165,6 +269,7 @@ function formatCompactUsd(value: number | null): string {
 // prepared in a turn, further action tool calls are skipped.
 const ACTION_TOOLS = new Set([
     "initiate_swap",
+    "wrap_sol",
     "transfer_sol",
     "transfer_token",
     "add_liquidity",
@@ -308,6 +413,11 @@ ALWAYS fetch fresh data. Every time the user asks about their wallet, portfolio,
 
 For any portfolio / balance / "total value" request, call get_wallet_overview (a single call). The app renders the balances and USD values as a portfolio card from exact computed data, so keep your reply to a brief intro and do NOT restate the SOL balance, token amounts, or dollar values in text (the card already shows them accurately).
 
+When the user asks you to ANALYZE their portfolio, SUGGEST investments, asks "what should I invest in", "how do I grow my portfolio", or wants ideas/opportunities:
+- First call get_wallet_overview to see their current holdings, AND call search_meteora_pools (e.g. with "SOL-USDC" or a bluechip pair) to surface two or three REAL liquidity pools with their live APR and TVL.
+- Then write a SHORT analysis (a few sentences): note how concentrated their holdings are, then give 2–3 concrete, actionable suggestions — for example diversifying a slice into bluechips (you can offer to build_portfolio a basket) and/or providing liquidity in a specific named pool you just fetched (name it with its APR). Only mention pools/tokens that a tool returned this turn; never invent APRs, names, or numbers.
+- Do NOT restate their exact balances or dollar values in the text (the portfolio card shows those) — spend your words on the analysis and suggestions. Add a one-line "not financial advice" caution.
+
 ALWAYS use a tool to perform actions. For any swap, transfer, liquidity, launch, prediction, or NFT request you MUST call the matching tool (e.g. initiate_swap) BEFORE describing it. NEVER state a swap quote, estimated output, or "confirm in the UI" unless a tool returned that data in this same turn. If the user says "try again", "retry", or "do it again" after an action, call the tool again to build a fresh transaction.
 
 Token naming: jupUSD (also written JupUSD, mint JuprjznTrTSp2UFa3ZBUFgwdAmtZCq4MQCwysN55USD) is Jupiter's USD stablecoin worth about $1. It is NOT the same as JUP (the governance token, mint JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN). When the user says jupUSD, never substitute JUP, and pass "jupUSD" as the token symbol.
@@ -319,6 +429,8 @@ When showing a swap quote, clearly display:
 - initiate_swap takes EITHER 'amount' (in input-token units) OR 'amountUsd' (a dollar value). If the user gives a token amount (e.g. "swap 0.1 SOL"), pass amount=0.1. If the user gives a dollar amount (e.g. "swap $6 of SOL" or "$2.5 worth of SOL"), pass amountUsd=6 (or 2.5) and DO NOT pass amount — the backend converts dollars to the right token amount with a live price. Never compute the token amount from a dollar value yourself. Pass exactly one of the two.
 - If a swap request includes an explicit mint address (e.g. "Swap 0.05 SOL for FOO (mint: <mint>)"), pass that exact mint string as the outputToken so the correct token is bought.
 - Never say a swap is ready or present a quote unless initiate_swap returned success. If it returned an error, state the error plainly and do not invent numbers.
+
+Wrapping / unwrapping SOL (SOL ↔ WSOL): SOL and Wrapped SOL (WSOL) are the SAME asset with the SAME mint, so there is NO swap route between them. Whenever the user wants to convert between SOL and WSOL — e.g. "wrap SOL", "swap SOL to wSOL", "convert 25% of my SOL to WSOL", "unwrap my WSOL", "turn WSOL back into SOL" — call the wrap_sol tool (direction "wrap" for SOL→WSOL, "unwrap" for WSOL→SOL), NEVER initiate_swap. Do not tell the user it can't be done. For a wrap, pass amount (in SOL) or amountUsd; for an unwrap, pass no amount (it unwraps the whole WSOL balance).
 
 When the user asks to "build", "create", or "diversify" a portfolio for a dollar amount (e.g. "build my portfolio worth $50", "diversify $20"):
 - Call build_portfolio with amountUsd (and a preset or token list if they specified one). Do NOT just call initiate_swap into a single token — that is not building a portfolio.
@@ -341,11 +453,12 @@ When showing USD values:
 When helping with Meteora liquidity:
 - First search for the pool using search_meteora_pools with the token pair name (e.g. "SOL-USDC")
 - Show pool details: name, TVL, APR, current price, bin step
-- For adding liquidity, just specify the pool address, the token symbol the user wants to deposit, and the amount. The backend will calculate the matching amount for the other token automatically based on the pool's current price.
+- For adding liquidity, specify the pool address, the token symbol the user wants to deposit, and a specific amount. A deposit amount is REQUIRED — if the user didn't give one, ask how much they want to deposit rather than guessing a number. The backend calculates the matching amount for the other token from the pool's current price.
+- A DLMM position needs BOTH of the pool's tokens (e.g. a SOL-USDC pool needs some SOL AND some USDC). If the user only holds one of them, add_liquidity returns a clear error explaining what they're missing and suggesting they swap into the other token first — relay that message and offer to do the swap.
 - For checking positions: just call get_user_positions once — it automatically scans transaction history to find all positions. Do NOT search pools first or call it multiple times.
 - For removing liquidity, first use get_user_positions with the pool address to find the user's positions, then call remove_liquidity with the position address
 - Liquidity is added using a Spot strategy around the active bin (current price)
-- Opening a new liquidity position holds back about 0.06 SOL as rent (refundable when the position is closed) on top of the tokens being deposited. If the user doesn't have enough SOL for the full deposit, add_liquidity AUTO-SIZES the deposit down to the largest amount that fits and returns adjusted:true — when that happens, tell the user their deposit was reduced to fit their available SOL and to review the amounts on the confirmation card. If add_liquidity instead returns a not-enough-SOL error, relay the tool's message EXACTLY. Either way, never recompute, round, or invent the balance/amount numbers.
+- Opening a new liquidity position holds back about 0.06 SOL as rent (refundable when the position is closed) on top of the tokens being deposited. If the user doesn't have enough SOL for the full deposit, add_liquidity AUTO-SIZES the deposit down to the largest amount that fits and returns adjusted:true — when that happens, tell the user their deposit was reduced to fit their available SOL and to review the amounts on the confirmation card. If add_liquidity instead returns an error (not-enough-SOL, missing the other token, or any other), output the tool's error message VERBATIM as your reply — do not paraphrase, summarize, round, or change any number. Never invent a balance or minimum.
 - Always tell the user to confirm the transaction in the UI
 
 When helping with Bags token launches:
@@ -550,6 +663,36 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                     },
                 },
                 required: ["inputToken", "outputToken"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "wrap_sol",
+            description:
+                "Wraps native SOL into Wrapped SOL (WSOL), or unwraps WSOL back to native SOL. SOL and WSOL are the SAME asset (same mint), so there is NO swap route between them — use THIS tool, never initiate_swap, whenever the user wants to convert between SOL and WSOL. Examples: 'wrap 0.1 SOL', 'convert SOL to WSOL', 'swap 25% of my SOL to wSOL', 'wrap SOL', 'unwrap my WSOL', 'convert WSOL back to SOL'. For a wrap, provide the amount (in SOL) or amountUsd. For an unwrap, no amount is needed — it unwraps the entire WSOL balance.",
+            parameters: {
+                type: "object",
+                properties: {
+                    direction: {
+                        type: "string",
+                        enum: ["wrap", "unwrap"],
+                        description:
+                            "'wrap' converts native SOL → WSOL; 'unwrap' converts WSOL → native SOL. If the user asks to go from SOL to WSOL, use 'wrap'. If from WSOL to SOL, use 'unwrap'.",
+                    },
+                    amount: {
+                        type: "number",
+                        description:
+                            "For 'wrap' only: amount of SOL to wrap, in SOL units (e.g. 0.1). Use ONLY when the user gives a token amount. Omit for 'unwrap'.",
+                    },
+                    amountUsd: {
+                        type: "number",
+                        description:
+                            "For 'wrap' only: dollar value of SOL to wrap (e.g. 5 for '$5 of SOL'). The backend converts USD → SOL with a live price. Omit for 'unwrap'.",
+                    },
+                },
+                required: ["direction"],
             },
         },
     },
@@ -1126,6 +1269,12 @@ interface ChatResponse {
               estimatedOutput: string | null;
           }
         | {
+              type: "wrapSol";
+              transaction: string; // base64 unsigned transaction
+              direction: "wrap" | "unwrap";
+              amount: number; // SOL amount wrapped/unwrapped
+          }
+        | {
               type: "addLiquidity";
               transactions: string[]; // base64-encoded transactions (partially signed)
               poolAddress: string;
@@ -1511,6 +1660,10 @@ export async function POST(request: NextRequest) {
         let pendingAction: ChatResponse["action"] | undefined;
         let pendingSwapPlan: ChatResponse["swapPlan"] | undefined;
         let portfolioView: PortfolioView | undefined;
+        // Exact add_liquidity error text. Forced verbatim into the reply so the
+        // model can't garble the balance/amount numbers (the source of the
+        // confusing "0 SOL" messages).
+        let liquidityError: string | undefined;
         let forcedActionRetryUsed = false;
         const toolResults: { name: string; result: unknown }[] = [];
 
@@ -2029,6 +2182,46 @@ export async function POST(request: NextRequest) {
                                     break;
                                 }
 
+                                // SOL and WSOL share a mint, so Jupiter has no
+                                // route between them — it's a wrap/unwrap, not a
+                                // swap. Route it correctly instead of failing.
+                                if (inputMint === outputMint) {
+                                    const inU = String(inputToken).toUpperCase();
+                                    const outU =
+                                        String(outputToken).toUpperCase();
+                                    const isWrapPair =
+                                        inputMint ===
+                                            "So11111111111111111111111111111111111111112" &&
+                                        (inU === "SOL" || inU === "WSOL") &&
+                                        (outU === "SOL" || outU === "WSOL") &&
+                                        inU !== outU;
+                                    if (isWrapPair) {
+                                        const wr = await buildWrapUnwrapAction({
+                                            spendWallet,
+                                            direction:
+                                                outU === "WSOL"
+                                                    ? "wrap"
+                                                    : "unwrap",
+                                            amount: amountArg,
+                                            amountUsd,
+                                        });
+                                        if ("error" in wr) {
+                                            result = { error: wr.error };
+                                        } else {
+                                            pendingAction = wr.pendingAction;
+                                            result = {
+                                                success: true,
+                                                message: wr.message,
+                                            };
+                                        }
+                                    } else {
+                                        result = {
+                                            error: `${inputToken} and ${outputToken} are the same token — there's nothing to swap.`,
+                                        };
+                                    }
+                                    break;
+                                }
+
                                 const inputDecimals =
                                     getKnownDecimals(inputMint) ??
                                     (await getMintDecimals(inputMint));
@@ -2154,6 +2347,44 @@ export async function POST(request: NextRequest) {
                                     error instanceof Error
                                         ? error.message
                                         : "Swap order failed";
+                                result = { error: msg };
+                            }
+                            break;
+                        }
+
+                        case "wrap_sol": {
+                            const args = JSON.parse(
+                                toolCall.function.arguments,
+                            );
+                            const { direction, amount, amountUsd } = args as {
+                                direction?: string;
+                                amount?: number;
+                                amountUsd?: number;
+                            };
+                            try {
+                                const wr = await buildWrapUnwrapAction({
+                                    spendWallet,
+                                    direction:
+                                        direction === "unwrap"
+                                            ? "unwrap"
+                                            : "wrap",
+                                    amount,
+                                    amountUsd,
+                                });
+                                if ("error" in wr) {
+                                    result = { error: wr.error };
+                                } else {
+                                    pendingAction = wr.pendingAction;
+                                    result = {
+                                        success: true,
+                                        message: wr.message,
+                                    };
+                                }
+                            } catch (error) {
+                                const msg =
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Wrap/unwrap failed";
                                 result = { error: msg };
                             }
                             break;
@@ -2797,10 +3028,25 @@ export async function POST(request: NextRequest) {
                             const { poolAddress, depositToken, depositAmount } =
                                 args;
 
+                            // Input validation: a positive deposit amount is
+                            // required so the model can't send a nonsense size.
+                            if (
+                                typeof depositAmount !== "number" ||
+                                !Number.isFinite(depositAmount) ||
+                                depositAmount <= 0
+                            ) {
+                                const err =
+                                    "Tell me how much to deposit — a positive amount of one of the pool's tokens (e.g. 'add 0.05 SOL of liquidity').";
+                                result = { error: err };
+                                liquidityError = err;
+                                break;
+                            }
+
                             try {
                                 const pool = await getPoolDetails(poolAddress);
                                 if (!pool) {
                                     result = { error: "Pool not found." };
+                                    liquidityError = "Pool not found.";
                                     break;
                                 }
 
@@ -2816,9 +3062,9 @@ export async function POST(request: NextRequest) {
                                     depositUpper;
 
                                 if (!isTokenX && !isTokenY) {
-                                    result = {
-                                        error: `Token ${depositToken} is not in this pool. This pool has ${pool.tokenXSymbol} and ${pool.tokenYSymbol}.`,
-                                    };
+                                    const err = `Token ${depositToken} is not in this pool. This pool has ${pool.tokenXSymbol} and ${pool.tokenYSymbol}.`;
+                                    result = { error: err };
+                                    liquidityError = err;
                                     break;
                                 }
 
@@ -2835,9 +3081,56 @@ export async function POST(request: NextRequest) {
                                     amountX = depositAmount / pool.currentPrice;
                                 }
 
+                                // Pre-flight balance check against the SIGNING
+                                // wallet (the one that funds the tx) so the numbers
+                                // match the user's portfolio. A DLMM deposit around
+                                // the active bin needs BOTH sides; a missing SPL
+                                // side (e.g. 0 USDC in a SOL-USDC pool) is the real
+                                // reason these deposits fail — say so precisely
+                                // instead of a confusing SOL-balance message.
+                                const NATIVE_SOL_MINT =
+                                    "So11111111111111111111111111111111111111112";
+                                const xIsSol = pool.tokenX === NATIVE_SOL_MINT;
+                                const yIsSol = pool.tokenY === NATIVE_SOL_MINT;
+                                const solBal = (
+                                    await getSOLBalance(spendWallet)
+                                ).sol;
+                                const holdings =
+                                    await getTokenAccounts(spendWallet);
+                                const balOf = (mint: string) =>
+                                    holdings.find((h) => h.mint === mint)
+                                        ?.amount ?? 0;
+
+                                const shortfalls: string[] = [];
+                                if (!xIsSol && amountX > balOf(pool.tokenX)) {
+                                    shortfalls.push(
+                                        `${amountX.toFixed(6)} ${pool.tokenXSymbol} (you have ${balOf(pool.tokenX)} ${pool.tokenXSymbol})`,
+                                    );
+                                }
+                                if (!yIsSol && amountY > balOf(pool.tokenY)) {
+                                    shortfalls.push(
+                                        `${amountY.toFixed(6)} ${pool.tokenYSymbol} (you have ${balOf(pool.tokenY)} ${pool.tokenYSymbol})`,
+                                    );
+                                }
+                                if (shortfalls.length > 0) {
+                                    let err = `Not enough tokens to add liquidity to ${pool.name}. This deposit needs ${shortfalls.join(" and ")}.`;
+                                    // If one side is SOL, the user likely holds
+                                    // only SOL — point them to swap into the other
+                                    // side first.
+                                    if (xIsSol || yIsSol) {
+                                        const otherSym = xIsSol
+                                            ? pool.tokenYSymbol
+                                            : pool.tokenXSymbol;
+                                        err += ` A ${pool.name} position needs BOTH ${pool.tokenXSymbol} and ${pool.tokenYSymbol}. You currently hold ${solBal.toFixed(4)} SOL. To add liquidity here, swap some SOL into ${otherSym} first, then try again.`;
+                                    }
+                                    result = { error: err };
+                                    liquidityError = err;
+                                    break;
+                                }
+
                                 const txResult = await buildAddLiquidityTx(
                                     poolAddress,
-                                    walletAddress,
+                                    spendWallet,
                                     amountX,
                                     amountY,
                                     pool.tokenXDecimals,
@@ -2878,6 +3171,7 @@ export async function POST(request: NextRequest) {
                                         ? error.message
                                         : "Add liquidity failed";
                                 result = { error: msg };
+                                liquidityError = msg;
                             }
                             break;
                         }
@@ -3816,11 +4110,31 @@ export async function POST(request: NextRequest) {
                 "Your transaction is ready. Review the details below and tap Confirm to proceed.";
         }
 
-        // When a portfolio card will render, the numbers come from the card (not the
-        // model), so keep the text to a short, number-free intro to avoid the model
-        // printing a mis-transcribed value alongside the correct card.
-        if (portfolioView) {
-            assistantMessage = "Here's your portfolio:";
+        // Force the exact add_liquidity error text verbatim so the model can't
+        // garble the balance/amount numbers (the source of the confusing "0 SOL"
+        // messages). Only when no action was prepared.
+        const forcedLiquidityError = Boolean(liquidityError && !pendingAction);
+        if (forcedLiquidityError) {
+            assistantMessage = liquidityError as string;
+        }
+
+        // When a portfolio card will render, the numbers come from the card (not
+        // the model). For a plain "show my portfolio" request, keep the text to a
+        // short, number-free intro so the model can't print a mis-transcribed
+        // value beside the correct card. But when the user asked to ANALYZE their
+        // portfolio or SUGGEST investments, keep the model's analysis/suggestions
+        // (the card still renders below the text).
+        if (portfolioView && !forcedLiquidityError) {
+            const analysisIntent =
+                /\b(analy[sz]e|analysis|suggest|suggestion|invest|investment|recommend|advice|advis|opportunit|diversif|allocat|grow|ideas?|strateg|what should i)\b/i.test(
+                    message,
+                );
+            const hasSubstance =
+                assistantMessage.trim().length >= 40 &&
+                assistantMessage !== "I'm not sure how to help with that.";
+            if (!analysisIntent || !hasSubstance) {
+                assistantMessage = "Here's your portfolio:";
+            }
         }
 
         const chatResponse: ChatResponse = { message: assistantMessage };

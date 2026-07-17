@@ -9,10 +9,18 @@ import {
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
   createTransferCheckedInstruction,
+  createSyncNativeInstruction,
+  createCloseAccountInstruction,
   getAssociatedTokenAddressSync,
+  getAccount,
   getMint,
 } from "@solana/spl-token";
+
+// Native SOL and Wrapped SOL share this mint. WSOL is always a classic SPL
+// token account (never Token-2022), so wrap/unwrap use TOKEN_PROGRAM_ID.
+const WSOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 
 const RPC_URL = process.env.SOLANA_RPC_URL!;
 
@@ -178,4 +186,84 @@ export async function createSplTransferTx(params: {
     amountBaseUnits: amountBaseUnits.toString(),
     decimals,
   };
+}
+
+/**
+ * Wrap native SOL into Wrapped SOL (WSOL). SOL and WSOL are the same asset with
+ * the same mint, so this is NOT a Jupiter swap — it deposits lamports into the
+ * owner's WSOL associated-token account and syncs it. The ATA is created
+ * idempotently, so it works whether or not the user already holds WSOL.
+ */
+export async function createWrapSolTx(params: {
+  ownerWallet: string;
+  /** Exact lamports of SOL to wrap. */
+  lamports: number;
+}): Promise<{ transaction: string; lamports: number }> {
+  const { ownerWallet, lamports } = params;
+  if (!Number.isInteger(lamports) || lamports <= 0) {
+    throw new Error("lamports must be a positive integer.");
+  }
+
+  const owner = new PublicKey(ownerWallet);
+  const ata = getAssociatedTokenAddressSync(WSOL_MINT, owner, false, TOKEN_PROGRAM_ID);
+
+  const connection = getConnection();
+  const { blockhash } = await connection.getLatestBlockhash("confirmed");
+
+  const tx = new Transaction({
+    feePayer: owner,
+    recentBlockhash: blockhash,
+  }).add(
+    createAssociatedTokenAccountIdempotentInstruction(
+      owner,
+      ata,
+      owner,
+      WSOL_MINT,
+      TOKEN_PROGRAM_ID
+    ),
+    SystemProgram.transfer({ fromPubkey: owner, toPubkey: ata, lamports }),
+    createSyncNativeInstruction(ata, TOKEN_PROGRAM_ID)
+  );
+
+  const serialized = tx.serialize({
+    requireAllSignatures: false,
+    verifySignatures: false,
+  });
+
+  return { transaction: serialized.toString("base64"), lamports };
+}
+
+/**
+ * Unwrap Wrapped SOL back to native SOL by closing the owner's WSOL account.
+ * Closing returns the full wrapped balance (plus the account's rent) to the
+ * owner as native SOL, so this always unwraps the entire WSOL balance.
+ */
+export async function createUnwrapSolTx(params: {
+  ownerWallet: string;
+}): Promise<{ transaction: string; lamports: number }> {
+  const { ownerWallet } = params;
+  const owner = new PublicKey(ownerWallet);
+  const ata = getAssociatedTokenAddressSync(WSOL_MINT, owner, false, TOKEN_PROGRAM_ID);
+
+  const connection = getConnection();
+  let wrappedLamports = 0;
+  try {
+    const account = await getAccount(connection, ata, "confirmed", TOKEN_PROGRAM_ID);
+    wrappedLamports = Number(account.amount);
+  } catch {
+    throw new Error("You don't have any Wrapped SOL (WSOL) to unwrap.");
+  }
+
+  const { blockhash } = await connection.getLatestBlockhash("confirmed");
+  const tx = new Transaction({
+    feePayer: owner,
+    recentBlockhash: blockhash,
+  }).add(createCloseAccountInstruction(ata, owner, owner, [], TOKEN_PROGRAM_ID));
+
+  const serialized = tx.serialize({
+    requireAllSignatures: false,
+    verifySignatures: false,
+  });
+
+  return { transaction: serialized.toString("base64"), lamports: wrappedLamports };
 }

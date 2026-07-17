@@ -100,6 +100,16 @@ interface TransferAction {
     cancelled?: boolean;
 }
 
+// Wrap (SOL → WSOL) or unwrap (WSOL → SOL). A single raw transaction that
+// broadcasts through the same /api/meteora/execute path as a transfer.
+interface WrapSolAction {
+    type: "wrapSol";
+    transaction: string;
+    direction: "wrap" | "unwrap";
+    amount: number;
+    cancelled?: boolean;
+}
+
 interface AddLiquidityAction {
     type: "addLiquidity";
     transactions: string[];
@@ -186,6 +196,7 @@ interface ListNFTAction {
 
 type MessageAction =
     | TransferAction
+    | WrapSolAction
     | SwapAction
     | AddLiquidityAction
     | RemoveLiquidityAction
@@ -199,6 +210,7 @@ type MessageAction =
 
 const ACTION_LABELS: Record<MessageAction["type"], string> = {
     transfer: "Transfer",
+    wrapSol: "Convert SOL",
     swap: "Swap",
     addLiquidity: "Add Liquidity",
     removeLiquidity: "Remove Liquidity",
@@ -237,6 +249,25 @@ function actionDetails(action: MessageAction): DetailRow[] {
                     value: `${action.amountLabel ?? action.amount} ${action.assetSymbol}`,
                 },
                 { label: "Recipient", value: action.toAddress, mono: true },
+            ];
+        case "wrapSol":
+            return [
+                {
+                    label: "Action",
+                    value: action.direction === "wrap" ? "Wrap" : "Unwrap",
+                },
+                {
+                    label: "From",
+                    value: action.direction === "wrap" ? "SOL" : "WSOL",
+                },
+                {
+                    label: "To",
+                    value: action.direction === "wrap" ? "WSOL" : "SOL",
+                },
+                {
+                    label: "Amount",
+                    value: `${action.amount} ${action.direction === "wrap" ? "SOL" : "WSOL"}`,
+                },
             ];
         case "swap":
             return [
@@ -362,6 +393,10 @@ function summarizeAction(action: MessageAction): string {
     switch (action.type) {
         case "transfer":
             return `Send ${action.amountLabel ?? action.amount} ${action.assetSymbol} to ${action.toAddress.slice(0, 4)}...${action.toAddress.slice(-4)}`;
+        case "wrapSol":
+            return action.direction === "wrap"
+                ? `Wrap ${action.amount} SOL → WSOL`
+                : `Unwrap ${action.amount} WSOL → SOL`;
         case "swap":
             return action.estimatedOutput
                 ? `Swap ${action.amount} ${action.inputToken} → ~${action.estimatedOutput} ${action.outputToken}`

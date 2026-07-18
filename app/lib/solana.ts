@@ -61,9 +61,12 @@ export async function getMintDecimals(mint: string): Promise<number> {
     return info.decimals;
 }
 
-// Reverse lookup: mint address → symbol
+// Reverse lookup: mint address → symbol. Used ONLY to label SPL token-account
+// holdings (resolveSymbol). Native SOL is the wallet's lamport balance and is
+// labeled "SOL" separately, so a token account of the native mint is always
+// Wrapped SOL — label it "WSOL" to avoid a confusing duplicate "SOL" row.
 const KNOWN_SYMBOLS: Record<string, string> = {
-    So11111111111111111111111111111111111111112: "SOL",
+    So11111111111111111111111111111111111111112: "WSOL",
     EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
     Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: "USDT",
     DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263: "BONK",

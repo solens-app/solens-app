@@ -23,6 +23,14 @@ interface PortfolioTokenRow {
     usdLabel: string;
 }
 
+interface PortfolioPositionRow {
+    poolAddress: string;
+    poolName: string;
+    pairLabel: string;
+    amountLabel: string;
+    usdLabel: string;
+}
+
 interface PortfolioView {
     walletAddress: string;
     solBalance: number;
@@ -31,6 +39,8 @@ interface PortfolioView {
     solUsdLabel: string;
     tokenCount: number;
     tokens: PortfolioTokenRow[];
+    // Open Meteora liquidity positions (funds deposited outside spot balances).
+    positions?: PortfolioPositionRow[];
     totalUsdValue: number | null;
     totalUsdLabel: string;
     pricesIncomplete: boolean;
@@ -1533,6 +1543,53 @@ function PortfolioCard({
                     </div>
                 ))}
             </dl>
+
+            {/* Liquidity positions — funds deposited into Meteora pools that live
+                outside the spot balances, so they don't look "lost". */}
+            {portfolio.positions && portfolio.positions.length > 0 && (
+                <dl className="divide-y divide-subtle/60 border-t border-subtle px-4 py-1 text-sm">
+                    <div className="pt-2 pb-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-300">
+                            Liquidity positions
+                        </span>
+                    </div>
+                    {portfolio.positions.map((p) => (
+                        <div
+                            key={p.poolAddress}
+                            className="flex items-center justify-between gap-3 py-2"
+                        >
+                            <dt className="flex min-w-0 flex-col">
+                                <span className="truncate text-text-primary">
+                                    {p.pairLabel}
+                                </span>
+                                <span className="truncate text-xs text-text-secondary">
+                                    {p.amountLabel}
+                                </span>
+                            </dt>
+                            <dd className="flex items-center gap-2">
+                                <span className="text-right text-text-primary">
+                                    {p.usdLabel}
+                                </span>
+                                <button
+                                    onClick={() =>
+                                        onBuy(
+                                            `Remove my liquidity from the ${p.poolName} pool (${p.poolAddress})`,
+                                        )
+                                    }
+                                    disabled={disabled}
+                                    className="rounded-md border border-subtle px-2 py-1 text-xs text-text-secondary transition-colors hover:border-violet-300 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Withdraw
+                                </button>
+                            </dd>
+                        </div>
+                    ))}
+                    <p className="pb-2 pt-1 text-xs text-text-secondary">
+                        Deposited liquidity. Closing a position also refunds the
+                        ~0.057 SOL held as position rent.
+                    </p>
+                </dl>
+            )}
 
             {portfolio.pricesIncomplete && (
                 <p className="px-4 pb-3 pt-1 text-xs text-text-secondary">

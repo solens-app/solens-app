@@ -17,6 +17,7 @@ import {
     searchPools,
     getPoolDetails,
     getUserPositionsForPool,
+    getAllUserPositions,
     buildAddLiquidityTx,
     buildRemoveLiquidityTx,
 } from "@/app/lib/meteora";
@@ -292,6 +293,14 @@ interface PortfolioTokenRow {
     usdLabel: string;
 }
 
+interface PortfolioPositionRow {
+    poolAddress: string;
+    poolName: string;
+    pairLabel: string;
+    amountLabel: string;
+    usdLabel: string;
+}
+
 interface PortfolioView {
     walletAddress: string;
     solBalance: number;
@@ -300,6 +309,9 @@ interface PortfolioView {
     solUsdLabel: string;
     tokenCount: number;
     tokens: PortfolioTokenRow[];
+    // Open Meteora DLMM liquidity positions. Deposited funds that sit outside the
+    // spot balances — surfaced here so LP-locked SOL/tokens don't look "lost".
+    positions: PortfolioPositionRow[];
     totalUsdValue: number | null;
     totalUsdLabel: string;
     pricesIncomplete: boolean;
@@ -349,6 +361,7 @@ async function computeWalletUsd(
 function buildPortfolioView(
     overview: Awaited<ReturnType<typeof computeWalletUsd>>,
     walletAddress: string,
+    liquidityPositions: Awaited<ReturnType<typeof getAllUserPositions>> = [],
 ): PortfolioView {
     const usd = (v: number | null): string =>
         v === null ? "unavailable" : `$${v.toFixed(2)}`;
@@ -362,6 +375,29 @@ function buildPortfolioView(
         usdLabel: usd(t.usdValue),
     }));
 
+    const positions: PortfolioPositionRow[] = liquidityPositions.map((p) => ({
+        poolAddress: p.poolAddress,
+        poolName: p.poolName,
+        pairLabel: `${p.tokenXSymbol} / ${p.tokenYSymbol}`,
+        amountLabel: `${p.amountX} ${p.tokenXSymbol} + ${p.amountY} ${p.tokenYSymbol}`,
+        usdLabel: p.valueUsd !== null ? `$${Number(p.valueUsd).toFixed(2)}` : "unavailable",
+    }));
+
+    // Value locked in liquidity positions counts toward the wallet's total, so
+    // the headline reflects LP-deposited funds instead of dropping them.
+    const positionsUsd = liquidityPositions.reduce(
+        (sum, p) => sum + (p.valueUsd !== null ? Number(p.valueUsd) : 0),
+        0,
+    );
+    const combinedTotal =
+        overview.totalUsdValue === null
+            ? null
+            : overview.totalUsdValue + positionsUsd;
+    const partialTotal =
+        (overview.totalUsdValue === null
+            ? sumKnown(overview)
+            : overview.totalUsdValue) + positionsUsd;
+
     return {
         walletAddress,
         solBalance: overview.solBalance,
@@ -370,10 +406,11 @@ function buildPortfolioView(
         solUsdLabel: usd(overview.solUsdValue),
         tokenCount: overview.tokenCount,
         tokens,
-        totalUsdValue: overview.totalUsdValue,
+        positions,
+        totalUsdValue: combinedTotal,
         totalUsdLabel: overview.pricesIncomplete
-            ? `${usd(overview.totalUsdValue === null ? sumKnown(overview) : overview.totalUsdValue)} (partial)`
-            : usd(overview.totalUsdValue),
+            ? `${usd(partialTotal)} (partial)`
+            : usd(combinedTotal),
         pricesIncomplete: overview.pricesIncomplete,
     };
 }
@@ -1770,14 +1807,27 @@ export async function POST(request: NextRequest) {
                             break;
 
                         case "get_wallet_overview": {
-                            const overview = await computeWalletUsd(
-                                await getWalletOverview(walletAddress),
-                            );
+                            const [overview, liquidityPositions] =
+                                await Promise.all([
+                                    computeWalletUsd(
+                                        await getWalletOverview(walletAddress),
+                                    ),
+                                    // LP positions live outside the spot balances;
+                                    // best-effort so a lookup failure never breaks
+                                    // the portfolio card.
+                                    getAllUserPositions(walletAddress).catch(
+                                        () => [],
+                                    ),
+                                ]);
                             portfolioView = buildPortfolioView(
                                 overview,
                                 walletAddress,
+                                liquidityPositions,
                             );
-                            result = overview;
+                            result = {
+                                ...overview,
+                                liquidityPositions,
+                            };
                             break;
                         }
 

@@ -375,13 +375,24 @@ function buildPortfolioView(
         usdLabel: usd(t.usdValue),
     }));
 
-    const positions: PortfolioPositionRow[] = liquidityPositions.map((p) => ({
-        poolAddress: p.poolAddress,
-        poolName: p.poolName,
-        pairLabel: `${p.tokenXSymbol} / ${p.tokenYSymbol}`,
-        amountLabel: `${p.amountX} ${p.tokenXSymbol} + ${p.amountY} ${p.tokenYSymbol}`,
-        usdLabel: p.valueUsd !== null ? `$${Number(p.valueUsd).toFixed(2)}` : "unavailable",
-    }));
+    const positions: PortfolioPositionRow[] = liquidityPositions.map((p) => {
+        // Show only the non-zero deposited sides, then the refundable rent (the
+        // bulk of the value for tiny deposits), so the amount matches the value.
+        const parts: string[] = [];
+        if (Number(p.amountX) > 0) parts.push(`${p.amountX} ${p.tokenXSymbol}`);
+        if (Number(p.amountY) > 0) parts.push(`${p.amountY} ${p.tokenYSymbol}`);
+        if (p.rentSol > 0) parts.push(`${p.rentSol.toFixed(4)} SOL rent`);
+        return {
+            poolAddress: p.poolAddress,
+            poolName: p.poolName,
+            pairLabel: `${p.tokenXSymbol} / ${p.tokenYSymbol}`,
+            amountLabel: parts.join(" · ") || "—",
+            usdLabel:
+                p.valueUsd !== null
+                    ? `$${Number(p.valueUsd).toFixed(2)}`
+                    : "unavailable",
+        };
+    });
 
     // Value locked in liquidity positions counts toward the wallet's total, so
     // the headline reflects LP-deposited funds instead of dropping them.

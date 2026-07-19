@@ -336,6 +336,9 @@ export interface UserPositionSummary {
   tokenYSymbol: string;
   amountX: string;
   amountY: string;
+  /** Refundable SOL held as position-account rent (reclaimed when the position is closed). */
+  rentSol: number;
+  /** Deposited liquidity PLUS the refundable rent — the recoverable value. */
   valueUsd: string | null;
   positionCount: number;
 }
@@ -352,16 +355,35 @@ export async function getAllUserPositions(
   const positions = await getUserPositionsForPool(walletAddress);
   if (positions.length === 0) return [];
 
-  // Aggregate raw amounts per pool.
+  // Each DLMM position account holds ~0.057 SOL of rent that is refunded when
+  // the position is closed. That SOL is the user's — read each position
+  // account's lamports so it can be counted as recoverable value (otherwise
+  // the biggest chunk of an LP deposit looks like it vanished).
+  const connection = getConnection();
+  const rentByPosition = new Map<string, number>();
+  try {
+    const pubkeys = positions.map((p) => new PublicKey(p.positionAddress));
+    const infos = await connection.getMultipleAccountsInfo(pubkeys);
+    infos.forEach((info, i) => {
+      if (info) rentByPosition.set(positions[i].positionAddress, info.lamports);
+    });
+  } catch {
+    // Rent stays 0 — value falls back to deposited liquidity only.
+  }
+
+  // Aggregate raw amounts + refundable rent per pool.
   const rawByPool = new Map<
     string,
-    { rawX: number; rawY: number; count: number }
+    { rawX: number; rawY: number; count: number; rentLamports: number }
   >();
   for (const pos of positions) {
-    const cur = rawByPool.get(pos.poolAddress) ?? { rawX: 0, rawY: 0, count: 0 };
+    const cur =
+      rawByPool.get(pos.poolAddress) ??
+      { rawX: 0, rawY: 0, count: 0, rentLamports: 0 };
     cur.rawX += Number(pos.totalXAmount) || 0;
     cur.rawY += Number(pos.totalYAmount) || 0;
     cur.count += 1;
+    cur.rentLamports += rentByPosition.get(pos.positionAddress) ?? 0;
     rawByPool.set(pos.poolAddress, cur);
   }
 
@@ -373,7 +395,9 @@ export async function getAllUserPositions(
   const poolByAddress = new Map(poolAddresses.map((a, i) => [a, poolList[i]]));
 
   // Price every distinct mint once (same helper the portfolio API uses).
-  const mints = new Set<string>();
+  // Always include SOL so the refundable rent can be valued.
+  const SOL_MINT = "So11111111111111111111111111111111111111112";
+  const mints = new Set<string>([SOL_MINT]);
   for (const a of poolAddresses) {
     const pool = poolByAddress.get(a);
     if (pool) {
@@ -399,13 +423,21 @@ export async function getAllUserPositions(
     const yDecimals = pool?.tokenYDecimals ?? 9;
     const amountX = raw.rawX / 10 ** xDecimals;
     const amountY = raw.rawY / 10 ** yDecimals;
+    const rentSol = raw.rentLamports / 1e9;
+    const solPrice = priceOf(SOL_MINT);
+    const rentUsd = solPrice !== null ? rentSol * solPrice : 0;
 
     let valueUsd: string | null = null;
     if (pool) {
       const xp = priceOf(pool.tokenX);
       const yp = priceOf(pool.tokenY);
       if (xp !== null || yp !== null) {
-        valueUsd = (amountX * (xp ?? 0) + amountY * (yp ?? 0)).toFixed(2);
+        // Deposited liquidity + refundable position rent = recoverable value.
+        valueUsd = (
+          amountX * (xp ?? 0) +
+          amountY * (yp ?? 0) +
+          rentUsd
+        ).toFixed(2);
       }
     }
 
@@ -417,6 +449,7 @@ export async function getAllUserPositions(
       tokenYSymbol: pool?.tokenYSymbol ?? "?",
       amountX: amountX.toFixed(Math.min(xDecimals, 6)),
       amountY: amountY.toFixed(Math.min(yDecimals, 6)),
+      rentSol,
       valueUsd,
       positionCount: raw.count,
     });

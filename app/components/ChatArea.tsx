@@ -1585,8 +1585,8 @@ function PortfolioCard({
                         </div>
                     ))}
                     <p className="pb-2 pt-1 text-xs text-text-secondary">
-                        Deposited liquidity. Closing a position also refunds the
-                        ~0.057 SOL held as position rent.
+                        Value includes deposited liquidity plus the refundable
+                        SOL rent you reclaim when you withdraw.
                     </p>
                 </dl>
             )}

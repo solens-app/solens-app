@@ -363,6 +363,14 @@ export type FeedTrade = {
   usd: number | null;
 };
 
+/** Prediction-market summary stored in `activity_events.meta.prediction`. */
+export type FeedPrediction = {
+  title: string;
+  /** The side taken. Only an opening order has one; sells and claims close a position. */
+  side: "YES" | "NO" | null;
+  usd: number | null;
+};
+
 export type FeedEntry = {
   id: string;
   wallet: string;
@@ -371,6 +379,10 @@ export type FeedEntry = {
   label: string;
   signature: string | null;
   trade: FeedTrade | null;
+  /** Market title + side/size for prediction events. */
+  prediction: FeedPrediction | null;
+  /** One-line summary for events with no richer shape (pool name, launched token). */
+  detail: string | null;
   /** True once we've attempted to derive trade meta (so we don't retry forever). */
   tried: boolean;
   ts: number;
@@ -395,6 +407,27 @@ function readTrade(meta: unknown): FeedTrade | null {
     amount: typeof t.amount === "number" ? t.amount : 0,
     usd: typeof t.usd === "number" ? t.usd : null,
   };
+}
+
+/** Narrow an unknown `meta.prediction` blob into a FeedPrediction, or null. */
+function readPrediction(meta: unknown): FeedPrediction | null {
+  if (!meta || typeof meta !== "object") return null;
+  const raw = (meta as Record<string, unknown>).prediction;
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  if (typeof p.title !== "string" || !p.title.trim()) return null;
+  return {
+    title: p.title,
+    side: p.side === "YES" || p.side === "NO" ? p.side : null,
+    usd: typeof p.usd === "number" && Number.isFinite(p.usd) ? p.usd : null,
+  };
+}
+
+/** Narrow an unknown `meta.detail` blob into a display string, or null. */
+function readDetail(meta: unknown): string | null {
+  if (!meta || typeof meta !== "object") return null;
+  const detail = (meta as Record<string, unknown>).detail;
+  return typeof detail === "string" && detail.trim() ? detail : null;
 }
 
 /**
@@ -440,6 +473,8 @@ export async function getRecentActivity(limit = 30, before?: number): Promise<Fe
     label: EVENT_LABEL[r.type] ?? r.type,
     signature: r.signature,
     trade: readTrade(r.meta),
+    prediction: readPrediction(r.meta),
+    detail: readDetail(r.meta),
     tried: Boolean(
       r.meta && typeof r.meta === "object" && (r.meta as Record<string, unknown>).tradeTried,
     ),

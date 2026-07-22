@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AppShell from "../components/AppShell";
+import BackButton from "../components/BackButton";
 
 export const metadata: Metadata = {
   title: "Terms & Conditions · Solens",
@@ -24,7 +25,8 @@ export default function TermsPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl pb-10 pt-6">
-        <h1 className="text-3xl font-bold">Terms &amp; Conditions</h1>
+        <BackButton fallbackHref="/" />
+        <h1 className="mt-3 text-3xl font-bold">Terms &amp; Conditions</h1>
         <p className="mt-2 text-sm text-text-secondary/70">Last updated: {LAST_UPDATED}</p>
 
         <div className="mt-6 rounded-2xl bg-surface card-shadow p-6 sm:p-8">

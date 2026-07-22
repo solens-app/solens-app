@@ -187,6 +187,7 @@ function PortfolioView({
                 <TokenRow
                   key={t.mint}
                   symbol={t.symbol}
+                  name={t.name}
                   amountLabel={`${formatAmount(t.amount)} ${t.symbol}`}
                   usdValue={t.usdValue}
                 />
@@ -268,10 +269,12 @@ function PortfolioView({
 
 function TokenRow({
   symbol,
+  name,
   amountLabel,
   usdValue,
 }: {
   symbol: string;
+  name?: string | null;
   amountLabel: string;
   usdValue: number | null;
 }) {
@@ -280,7 +283,12 @@ function TokenRow({
       <div className="flex min-w-0 items-center gap-3">
         <TokenBadge symbol={symbol} />
         <div className="min-w-0">
-          <div className="truncate font-medium">{symbol}</div>
+          <div className="truncate font-medium">
+            {symbol}
+            {name && (
+              <span className="ml-1.5 text-xs font-normal text-text-secondary/70">{name}</span>
+            )}
+          </div>
           <div className="truncate text-xs text-text-secondary/60">{amountLabel}</div>
         </div>
       </div>

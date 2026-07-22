@@ -1,4 +1,4 @@
-import { getWalletOverview } from "@/app/lib/solana";
+import { distinctTokenName, getWalletOverview } from "@/app/lib/solana";
 import { getTokenPrices } from "@/app/lib/jupiter";
 
 const NATIVE_SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -7,6 +7,8 @@ export interface PortfolioToken {
     mint: string;
     /** Resolved symbol, or a short mint fallback. */
     symbol: string;
+    /** Full token name, when it adds anything over the ticker. */
+    name: string | null;
     amount: number;
     amountLabel: string;
     usdPrice: number | null;
@@ -59,6 +61,7 @@ export async function getPortfolio(walletAddress: string): Promise<Portfolio> {
         return {
             mint: t.mint,
             symbol: t.symbol || shortMint(t.mint),
+            name: distinctTokenName(t.symbol, t.name),
             amount: t.amount,
             amountLabel: String(t.amountString ?? t.amount),
             usdPrice,

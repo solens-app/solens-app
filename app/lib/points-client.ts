@@ -6,18 +6,22 @@
 
 const REF_KEY = "solens_ref";
 
-/** Record a real activity event (fire-and-forget). The server verifies it. */
+/**
+ * Record a real activity event (fire-and-forget). The server verifies it and
+ * sanitizes `meta` — only the display fields the social feed renders survive.
+ */
 export function recordPointsEvent(
   wallet: string | null | undefined,
   type: string,
   signature?: string,
+  meta?: Record<string, unknown>,
 ): void {
   if (!wallet) return;
   try {
     void fetch("/api/points/event", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet, type, signature }),
+      body: JSON.stringify({ wallet, type, signature, meta }),
     }).catch(() => {});
   } catch {
     /* no-op */

@@ -5,6 +5,7 @@ import {
     getTokenAccounts,
     getWalletOverview,
     getMintDecimals,
+    distinctTokenName,
 } from "@/app/lib/solana";
 import {
     getTokenPrices,
@@ -286,6 +287,8 @@ const ACTION_TOOLS = new Set([
 
 interface PortfolioTokenRow {
     symbol: string;
+    /** Full token name, when it adds anything over the ticker. */
+    name: string | null;
     mint: string;
     amount: number;
     amountLabel: string;
@@ -368,6 +371,7 @@ function buildPortfolioView(
 
     const tokens: PortfolioTokenRow[] = overview.tokens.map((t) => ({
         symbol: t.symbol || `${t.mint.slice(0, 4)}…${t.mint.slice(-4)}`,
+        name: distinctTokenName(t.symbol, t.name),
         mint: t.mint,
         amount: t.amount,
         amountLabel: `${t.amountString ?? t.amount}`,
@@ -449,7 +453,7 @@ You can help users with:
 5. Checking token info (creators, lifetime fees) - use get_bags_token_info tool
 6. Checking and claiming fees from Bags token launches - use get_claimable_fees and claim_fees tools
 7. Prediction markets via Jupiter - search events, place bets on outcomes, view positions, sell positions, claim winnings
-8. NFT trading on Magic Eden - search collections, browse listings, buy NFTs, and list your NFTs for sale
+NFTs are NOT supported. If the user asks to buy, sell, list or view NFTs, say plainly that Solens doesn't support NFTs right now. Never treat a token ticker as an NFT collection: "buy <TICKER>" always means a token swap (initiate_swap), never an NFT purchase.
 9. Trending tokens - use get_trending_tokens to show the hottest / most-traded Solana tokens (memecoins and alts) with live price and 24h change
 
 When showing trending tokens:
@@ -466,7 +470,7 @@ When the user asks you to ANALYZE their portfolio, SUGGEST investments, asks "wh
 - Then write a SHORT analysis (a few sentences): note how concentrated their holdings are, then give 2–3 concrete, actionable suggestions — for example diversifying a slice into bluechips (you can offer to build_portfolio a basket) and/or providing liquidity in a specific named pool you just fetched (name it with its APR). Only mention pools/tokens that a tool returned this turn; never invent APRs, names, or numbers.
 - Do NOT restate their exact balances or dollar values in the text (the portfolio card shows those) — spend your words on the analysis and suggestions. Add a one-line "not financial advice" caution.
 
-ALWAYS use a tool to perform actions. For any swap, transfer, liquidity, launch, prediction, or NFT request you MUST call the matching tool (e.g. initiate_swap) BEFORE describing it. NEVER state a swap quote, estimated output, or "confirm in the UI" unless a tool returned that data in this same turn. If the user says "try again", "retry", or "do it again" after an action, call the tool again to build a fresh transaction.
+ALWAYS use a tool to perform actions. For any swap, transfer, liquidity, launch, or prediction request you MUST call the matching tool (e.g. initiate_swap) BEFORE describing it. NEVER state a swap quote, estimated output, or "confirm in the UI" unless a tool returned that data in this same turn. If the user says "try again", "retry", or "do it again" after an action, call the tool again to build a fresh transaction.
 
 Token naming: jupUSD (also written JupUSD, mint JuprjznTrTSp2UFa3ZBUFgwdAmtZCq4MQCwysN55USD) is Jupiter's USD stablecoin worth about $1. It is NOT the same as JUP (the governance token, mint JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN). When the user says jupUSD, never substitute JUP, and pass "jupUSD" as the token symbol.
 
@@ -530,14 +534,6 @@ When helping with prediction markets:
 - Each winning contract pays out exactly $1.00 with no claim fees.
 - When showing markets to users, always include the marketId so they can reference it.
 
-When helping with NFT trading on Magic Eden:
-- Use search_nft_collection to look up a collection by its symbol (lowercase with underscores, e.g. "okay_bears", "degods", "mad_lads", "tensorians")
-- Use get_nft_listings to see active listings with prices, sellers, and listing details
-- To buy an NFT, use buy_nft with the EXACT listing data from get_nft_listings (tokenMint, seller, tokenAddress as tokenATA, price, expiry, auctionHouse). Do NOT modify or omit these values.
-- To list (sell) an NFT, first check the user's NFTs with get_my_nfts, then use list_nft with the mint address and desired price in SOL
-- Collection symbols are lowercase with underscores (e.g. "okay_bears" not "Okay Bears")
-- Floor prices and volume from stats are in lamports (already converted to SOL in results)
-- Listing prices are in SOL
 - AVOID short-lived markets (5-15 minute windows like "Bitcoin Up or Down - April 11, 1:35PM-1:40PM ET") — these often fail because the keeper can't fill them in time.
 - IMPORTANT: The minimum bet size is $5. Orders under $5 will not be filled by the keeper. If the user tries to bet less than $5, tell them the minimum is $5.
 
@@ -1166,126 +1162,6 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             },
         },
     },
-    {
-        type: "function",
-        function: {
-            name: "search_nft_collection",
-            description:
-                "Searches for an NFT collection on Magic Eden by its symbol. Returns collection stats including floor price, listed count, and volume. Use when the user asks about an NFT collection or wants to browse/buy/sell NFTs.",
-            parameters: {
-                type: "object",
-                properties: {
-                    symbol: {
-                        type: "string",
-                        description:
-                            "The collection symbol on Magic Eden (e.g. 'okay_bears', 'degods', 'mad_lads', 'tensorians'). Use lowercase with underscores.",
-                    },
-                },
-                required: ["symbol"],
-            },
-        },
-    },
-    {
-        type: "function",
-        function: {
-            name: "get_nft_listings",
-            description:
-                "Gets active NFT listings for sale in a collection on Magic Eden. Returns listed NFTs with prices, seller addresses, and all data needed for buying. Use after search_nft_collection to view what's for sale.",
-            parameters: {
-                type: "object",
-                properties: {
-                    symbol: {
-                        type: "string",
-                        description:
-                            "The collection symbol (e.g. 'okay_bears')",
-                    },
-                    limit: {
-                        type: "number",
-                        description:
-                            "Number of listings to return (default 10, max 20)",
-                    },
-                },
-                required: ["symbol"],
-            },
-        },
-    },
-    {
-        type: "function",
-        function: {
-            name: "get_my_nfts",
-            description:
-                "Gets the user's NFT holdings from their wallet. Shows all NFTs they own with collection info, names, and list status. Use when the user wants to see their NFTs or list one for sale.",
-            parameters: { type: "object", properties: {}, required: [] },
-        },
-    },
-    {
-        type: "function",
-        function: {
-            name: "buy_nft",
-            description:
-                "Buys a listed NFT on Magic Eden. Requires listing details from get_nft_listings results. Returns a transaction for the user to sign. IMPORTANT: Pass the EXACT values from the listing data — do not modify seller, tokenMint, tokenAddress, price, or expiry.",
-            parameters: {
-                type: "object",
-                properties: {
-                    tokenMint: {
-                        type: "string",
-                        description:
-                            "The NFT's mint address (from listing data)",
-                    },
-                    seller: {
-                        type: "string",
-                        description:
-                            "The seller's wallet address (from listing data)",
-                    },
-                    tokenATA: {
-                        type: "string",
-                        description:
-                            "The seller's token account address (tokenAddress field from listing data)",
-                    },
-                    price: {
-                        type: "number",
-                        description:
-                            "The listing price in SOL (priceRaw from listing data)",
-                    },
-                    sellerExpiry: {
-                        type: "number",
-                        description:
-                            "The seller's expiry timestamp (expiry field from listing data, 0 if not set)",
-                    },
-                    auctionHouseAddress: {
-                        type: "string",
-                        description:
-                            "The auction house address (auctionHouse from listing data, optional)",
-                    },
-                },
-                required: ["tokenMint", "seller", "tokenATA", "price"],
-            },
-        },
-    },
-    {
-        type: "function",
-        function: {
-            name: "list_nft",
-            description:
-                "Lists a user's NFT for sale on Magic Eden at a specified price. Returns a transaction for the user to sign. The user must own the NFT. Use get_my_nfts first to find the NFT's mint address.",
-            parameters: {
-                type: "object",
-                properties: {
-                    tokenMint: {
-                        type: "string",
-                        description:
-                            "The NFT's mint address (from get_my_nfts results)",
-                    },
-                    priceSOL: {
-                        type: "number",
-                        description:
-                            "The listing price in SOL (e.g. 1.5 for 1.5 SOL)",
-                    },
-                },
-                required: ["tokenMint", "priceSOL"],
-            },
-        },
-    },
 ];
 
 interface ChatMessage {
@@ -1536,51 +1412,6 @@ function generateQuickReplies(
                 });
             }
         }
-
-        // NFT collection search → view listings button
-        if (name === "search_nft_collection" && data.symbol) {
-            replies.push({
-                label: `View ${data.symbol} listings`,
-                prompt: `Show me the NFT listings for ${data.symbol as string}`,
-            });
-        }
-
-        // NFT listings → buy buttons
-        if (name === "get_nft_listings" && Array.isArray(data.listings)) {
-            const listings = data.listings as {
-                tokenMint: string;
-                name: string;
-                price: string;
-                priceRaw: number;
-            }[];
-            for (const l of listings.slice(0, 5)) {
-                const label =
-                    l.name.length > 20 ? l.name.slice(0, 17) + "..." : l.name;
-                replies.push({
-                    label: `Buy "${label}" · ${l.price}`,
-                    prompt: `Buy the NFT "${l.name}" with mint ${l.tokenMint}`,
-                });
-            }
-        }
-
-        // User NFTs → list buttons
-        if (name === "get_my_nfts" && Array.isArray(data.nfts)) {
-            const nfts = data.nfts as {
-                mintAddress: string;
-                name: string;
-                listStatus: string;
-            }[];
-            for (const n of nfts
-                .filter((n) => n.listStatus !== "listed")
-                .slice(0, 5)) {
-                const label =
-                    n.name.length > 25 ? n.name.slice(0, 22) + "..." : n.name;
-                replies.push({
-                    label: `List "${label}"`,
-                    prompt: `List my NFT "${n.name}" (${n.mintAddress}) for sale`,
-                });
-            }
-        }
     }
 
     return replies.slice(0, 10);
@@ -1737,7 +1568,7 @@ export async function POST(request: NextRequest) {
             messages.push({
                 role: "user",
                 content:
-                    "You described an action but did not call a tool. Call the correct tool now (initiate_swap, transfer_sol, transfer_token, add_liquidity, buy_prediction, buy_nft, list_nft, etc.) to actually prepare it. Do not quote or describe the action again without calling the tool.",
+                    "You described an action but did not call a tool. Call the correct tool now (initiate_swap, transfer_sol, transfer_token, add_liquidity, buy_prediction, launch_token, etc.) to actually prepare it. Do not quote or describe the action again without calling the tool.",
             });
             const forced = await createChatCompletion({
                 model: MODEL,

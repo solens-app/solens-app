@@ -13,6 +13,12 @@ type FeedTrade = {
   usd: number | null;
 };
 
+type FeedPrediction = {
+  title: string;
+  side: "YES" | "NO" | null;
+  usd: number | null;
+};
+
 type FeedEntry = {
   id: string;
   wallet: string;
@@ -21,6 +27,8 @@ type FeedEntry = {
   label: string;
   signature: string | null;
   trade: FeedTrade | null;
+  prediction?: FeedPrediction | null;
+  detail?: string | null;
   ts: number;
 };
 
@@ -207,8 +215,21 @@ function SolscanLink({ signature }: { signature: string }) {
   );
 }
 
+function PredictionSideBadge({ side }: { side: "YES" | "NO" }) {
+  const isYes = side === "YES";
+  return (
+    <span
+      className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+        isYes ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
+      }`}
+    >
+      {side}
+    </span>
+  );
+}
+
 function FeedCard({ entry }: { entry: FeedEntry }) {
-  const { trade } = entry;
+  const { trade, prediction, detail } = entry;
   return (
     <li className="border-b border-subtle px-4 py-3 transition-colors hover:bg-elevated/40">
       <div className="flex items-center gap-2">
@@ -243,13 +264,32 @@ function FeedCard({ entry }: { entry: FeedEntry }) {
             {entry.signature && <SolscanLink signature={entry.signature} />}
           </span>
         </div>
+      ) : prediction ? (
+        <div className="mt-2 flex items-start gap-2 pl-10">
+          {prediction.side && <PredictionSideBadge side={prediction.side} />}
+          <span className="min-w-0 flex-1 text-sm leading-snug text-text-primary">
+            {prediction.title}
+          </span>
+          <span className="flex flex-shrink-0 items-center gap-2">
+            {compactUsd(prediction.usd) && (
+              <span className="text-sm font-semibold text-text-primary">
+                {compactUsd(prediction.usd)}
+              </span>
+            )}
+            {entry.signature && <SolscanLink signature={entry.signature} />}
+          </span>
+        </div>
       ) : (
-        entry.signature && (
+        (detail || entry.signature) && (
           <div className="mt-1.5 flex items-center gap-2 pl-10 text-sm text-text-secondary">
-            <span>On-chain {entry.label.toLowerCase()}</span>
-            <span className="ml-auto flex-shrink-0">
-              <SolscanLink signature={entry.signature} />
+            <span className="min-w-0 truncate">
+              {detail ?? `On-chain ${entry.label.toLowerCase()}`}
             </span>
+            {entry.signature && (
+              <span className="ml-auto flex-shrink-0">
+                <SolscanLink signature={entry.signature} />
+              </span>
+            )}
           </div>
         )
       )}

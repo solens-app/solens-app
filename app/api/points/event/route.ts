@@ -14,6 +14,37 @@ const RPC_URL = process.env.SOLANA_RPC_URL;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const MAX_TITLE = 160;
+const MAX_DETAIL = 120;
+
+/**
+ * Keep only the display fields the feed knows how to render, with bounded
+ * lengths. Everything here arrives from the browser and is shown to *every*
+ * user in the platform-wide feed, so an arbitrary client blob must never make
+ * it into storage.
+ */
+function sanitizeMeta(raw: Record<string, unknown>): Record<string, unknown> {
+  const clean: Record<string, unknown> = {};
+
+  const prediction = raw.prediction;
+  if (prediction && typeof prediction === "object") {
+    const p = prediction as Record<string, unknown>;
+    const title = typeof p.title === "string" ? p.title.trim().slice(0, MAX_TITLE) : "";
+    if (title) {
+      clean.prediction = {
+        title,
+        side: p.side === "YES" || p.side === "NO" ? p.side : null,
+        usd: typeof p.usd === "number" && Number.isFinite(p.usd) ? p.usd : null,
+      };
+    }
+  }
+
+  const detail = typeof raw.detail === "string" ? raw.detail.trim().slice(0, MAX_DETAIL) : "";
+  if (detail) clean.detail = detail;
+
+  return clean;
+}
+
 /**
  * Confirm a transaction signature landed successfully and that `wallet` is one
  * of its account keys, returning the fetched transaction so callers can enrich
@@ -86,7 +117,10 @@ export async function POST(request: NextRequest) {
   const wallet = typeof body.wallet === "string" ? body.wallet.trim() : "";
   const rawType = typeof body.type === "string" ? body.type.trim() : "";
   const signature = typeof body.signature === "string" ? body.signature.trim() : "";
-  const meta = body.meta && typeof body.meta === "object" ? (body.meta as Record<string, unknown>) : {};
+  const meta =
+    body.meta && typeof body.meta === "object"
+      ? sanitizeMeta(body.meta as Record<string, unknown>)
+      : {};
 
   if (!wallet) return NextResponse.json({ error: "Missing wallet" }, { status: 400 });
 

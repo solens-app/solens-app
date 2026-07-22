@@ -79,19 +79,28 @@ const KNOWN_SYMBOLS: Record<string, string> = {
     JuprjznTrTSp2UFa3ZBUFgwdAmtZCq4MQCwysN55USD: "JupUSD",
 };
 
-// Resolved symbols are cached for the process lifetime (a mint's symbol is
-// effectively immutable). null is cached too, so we don't re-hit the API for
-// tokens Jupiter doesn't know about.
-const symbolCache = new Map<string, string | null>();
+/** Display identity for a mint: its ticker plus its full token name. */
+export interface TokenIdentity {
+    symbol: string | null;
+    name: string | null;
+}
 
-async function resolveSymbol(mint: string): Promise<string | null> {
-    if (KNOWN_SYMBOLS[mint]) return KNOWN_SYMBOLS[mint];
-    if (symbolCache.has(mint)) return symbolCache.get(mint) ?? null;
+// Resolved identities are cached for the process lifetime (a mint's symbol and
+// name are effectively immutable). Misses are cached too, so we don't re-hit the
+// API for tokens Jupiter doesn't know about.
+const identityCache = new Map<string, TokenIdentity>();
+
+async function resolveIdentity(mint: string): Promise<TokenIdentity> {
+    if (KNOWN_SYMBOLS[mint]) {
+        return { symbol: KNOWN_SYMBOLS[mint], name: null };
+    }
+    const cached = identityCache.get(mint);
+    if (cached) return cached;
 
     // Fallback: look up via Jupiter's token search on the keyless lite host.
     // The keyed api.jup.ag host 401s without the swap key, which is why
     // unknown tokens previously fell through to showing their raw mint.
-    let symbol: string | null = null;
+    let identity: TokenIdentity = { symbol: null, name: null };
     try {
         const res = await fetch(
             `https://lite-api.jup.ag/tokens/v2/search?query=${encodeURIComponent(mint)}`,
@@ -99,21 +108,49 @@ async function resolveSymbol(mint: string): Promise<string | null> {
         if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data)) {
-                const match =
-                    data.find((t) => t?.id === mint) ?? data[0];
-                if (match?.symbol) symbol = match.symbol as string;
+                // Exact mint only — we searched *by* mint, so any other result
+                // is a different token and would mislabel the holding.
+                const match = data.find((t) => t?.id === mint);
+                if (match?.symbol) {
+                    identity = {
+                        symbol: match.symbol as string,
+                        name:
+                            typeof match.name === "string" && match.name.trim()
+                                ? (match.name as string)
+                                : null,
+                    };
+                }
             }
         }
     } catch {
-        // ignore — leave symbol null
+        // ignore — leave the identity unresolved
     }
-    symbolCache.set(mint, symbol);
-    return symbol;
+    identityCache.set(mint, identity);
+    return identity;
+}
+
+/**
+ * The token's full name, but only when it says more than the ticker already
+ * does. "ELSA" → "Elsa on Solana" is worth showing; a token whose name *is* its
+ * ticker would otherwise render the same string twice.
+ */
+export function distinctTokenName(
+    symbol: string | null,
+    name: string | null,
+): string | null {
+    const trimmed = name?.trim();
+    if (!trimmed) return null;
+    if (!symbol) return trimmed;
+    return trimmed.toLowerCase() === symbol.trim().toLowerCase()
+        ? null
+        : trimmed;
 }
 
 interface TokenInfo {
     mint: string;
     symbol: string | null;
+    /** Full token name (e.g. "Elsa on Solana"), when Jupiter knows the mint. */
+    name: string | null;
     amount: number;
     amountString: string;
     decimals: number;
@@ -156,12 +193,12 @@ async function fetchTokensForProgram(
             })
             .filter((t) => BigInt(t.rawAmount) > BigInt(0));
 
-        // Resolve symbols for all tokens
+        // Resolve display identity (ticker + full name) for all tokens
         const tokens: TokenInfo[] = await Promise.all(
-            nonZero.map(async (t) => ({
-                ...t,
-                symbol: await resolveSymbol(t.mint),
-            })),
+            nonZero.map(async (t) => {
+                const { symbol, name } = await resolveIdentity(t.mint);
+                return { ...t, symbol, name };
+            }),
         );
 
         return tokens;

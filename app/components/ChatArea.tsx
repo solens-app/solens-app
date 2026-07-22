@@ -16,6 +16,8 @@ interface QuickReply {
 
 interface PortfolioTokenRow {
     symbol: string;
+    /** Full token name, when it adds anything over the ticker. */
+    name?: string | null;
     mint: string;
     amount: number;
     amountLabel: string;
@@ -432,6 +434,57 @@ function summarizeAction(action: MessageAction): string {
     }
 }
 
+/** Parse a formatted USD string ("$4.20", "4.20") into a number, or null. */
+function parseUsd(value: string | number | null | undefined): number | null {
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    if (typeof value !== "string") return null;
+    const n = Number(value.replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Display metadata for the platform-wide social feed. Swaps are enriched
+ * server-side from the confirmed transaction, so only actions the server can't
+ * reconstruct from chain data — which market, which pool, which token — carry
+ * meta from here. The server whitelists and length-caps these fields.
+ */
+function feedMeta(action: MessageAction): Record<string, unknown> | undefined {
+    switch (action.type) {
+        case "predictionOrder":
+            return {
+                prediction: {
+                    title: action.marketTitle,
+                    side: action.side,
+                    usd: parseUsd(action.amountUsd),
+                },
+            };
+        case "sellPrediction":
+            return {
+                prediction: {
+                    title: action.marketTitle,
+                    side: null,
+                    usd: null,
+                },
+            };
+        case "claimPrediction":
+            return {
+                prediction: {
+                    title: action.marketTitle,
+                    side: null,
+                    usd: parseUsd(action.payoutUsd),
+                },
+            };
+        case "addLiquidity":
+            return {
+                detail: `${action.poolName} · ${action.tokenXSymbol}/${action.tokenYSymbol}`,
+            };
+        case "launchToken":
+            return { detail: `${action.tokenName} (${action.tokenSymbol})` };
+        default:
+            return undefined;
+    }
+}
+
 // Suggestion chips for the empty/hero state — mirrors the Figma "See what can
 // Solens do" list, scoped to capabilities the backend actually supports.
 const suggestedPrompts: { text: string; highlight?: boolean }[] = [
@@ -442,7 +495,7 @@ const suggestedPrompts: { text: string; highlight?: boolean }[] = [
     { text: "What's the price of SOL?" },
     { text: "Swap 0.1 SOL for USDC" },
     { text: "Search Meteora pools for SOL-USDC" },
-    { text: "Show my NFTs" },
+    { text: "Show me trending prediction markets" },
 ];
 
 function SolensAvatar() {
@@ -776,7 +829,12 @@ export default function ChatArea() {
                     setFinishedActions((prev) => new Set(prev).add(msg.id));
                     // Record the real, on-chain action for the Points system.
                     // The server re-verifies the signature before awarding.
-                    recordPointsEvent(walletAddress, action.type, data.signature);
+                    recordPointsEvent(
+                        walletAddress,
+                        action.type,
+                        data.signature,
+                        feedMeta(action),
+                    );
                     appendAssistant(
                         `${label} successful! [View on Solscan](https://solscan.io/tx/${data.signature})`,
                     );
@@ -1519,6 +1577,11 @@ function PortfolioCard({
                         <dt className="flex min-w-0 flex-col">
                             <span className="truncate text-text-primary">
                                 {t.symbol}
+                                {t.name && (
+                                    <span className="ml-1.5 text-xs text-text-secondary">
+                                        {t.name}
+                                    </span>
+                                )}
                             </span>
                             <span className="text-xs text-text-secondary">
                                 {t.amountLabel}

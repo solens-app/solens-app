@@ -32,6 +32,23 @@ function looksLikeMint(value: string): boolean {
     return BASE58_RE.test(value.trim());
 }
 
+// A mint embedded in a longer phrase. The "buy" quick replies hand the model a
+// prompt like `Swap 0.05 SOL for Jimothy (mint: Ge87…pump)`, and it sometimes
+// passes that whole phrase through as the token instead of just the address.
+const EMBEDDED_MINT_RE = /[1-9A-HJ-NP-Za-km-z]{32,44}/;
+
+/**
+ * The mint the caller actually meant, when the string contains one. An explicit
+ * address is always authoritative — resolving it by fuzzy symbol search instead
+ * can land on a different token that merely ranks well for the query.
+ */
+function extractMint(value: string): string | null {
+    const trimmed = value.trim();
+    if (looksLikeMint(trimmed)) return trimmed;
+    const match = trimmed.match(EMBEDDED_MINT_RE);
+    return match ? match[0] : null;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function requestJson<T>(
@@ -89,11 +106,13 @@ function jupiterFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export async function resolveTokenMint(symbol: string): Promise<string | null> {
     const query = symbol.trim();
 
-    // A raw mint address should be used directly rather than fuzzy-searched.
-    if (looksLikeMint(query)) return query;
-
     const upper = query.toUpperCase();
     if (KNOWN_MINTS[upper]) return KNOWN_MINTS[upper];
+
+    // A mint address — raw, or embedded in a phrase like "Jimothy (mint: …)" —
+    // is used directly rather than fuzzy-searched.
+    const explicitMint = extractMint(query);
+    if (explicitMint) return explicitMint;
 
     // Try searching Jupiter token list. Many scam tokens squat popular symbols,
     // so we cannot just take the first result or the first exact-symbol match —
@@ -163,7 +182,9 @@ export async function getTokenMeta(mint: string): Promise<TokenMeta | null> {
                 decimals?: number;
             }>
         >(`/tokens/v2/search?query=${encodeURIComponent(query)}`);
-        const hit = results.find((r) => r.id === query) ?? results[0];
+        // Exact mint only: we searched *by* mint, so a non-matching first result
+        // is a different token and would mislabel the trade.
+        const hit = results.find((r) => r.id === query);
         if (!hit || !hit.symbol) return null;
         return {
             mint: query,

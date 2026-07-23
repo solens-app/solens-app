@@ -166,49 +166,47 @@ async function fetchTokensForProgram(
     owner: PublicKey,
     programId: PublicKey,
 ): Promise<TokenInfo[]> {
-    try {
-        const result = await withRetry(() =>
+    const result = await withRetry(
+        () =>
             connection.getParsedTokenAccountsByOwner(owner, {
                 programId,
             }),
-        );
-        const nonZero = result.value
-            .map((account) => {
-                const info = account.account.data.parsed.info;
-                const rawAmount = String(info.tokenAmount.amount);
-                const amountString = String(
-                    info.tokenAmount.uiAmountString ??
-                        info.tokenAmount.uiAmount ??
-                        "0",
-                );
-                return {
-                    mint: info.mint as string,
-                    amount: Number(amountString),
-                    amountString,
-                    decimals: info.tokenAmount.decimals as number,
-                    address: account.pubkey.toBase58(),
-                    rawAmount,
-                    programId: programId.toBase58(),
-                };
-            })
-            .filter((t) => BigInt(t.rawAmount) > BigInt(0));
+        4,
+    );
+    // A failed RPC read throws (withRetry rethrows after its attempts). We do
+    // NOT swallow it into an empty list here — that used to make a funded wallet
+    // intermittently render as empty. A genuinely empty wallet returns a
+    // successful response with an empty `value`, which flows through normally.
+    const nonZero = result.value
+        .map((account) => {
+            const info = account.account.data.parsed.info;
+            const rawAmount = String(info.tokenAmount.amount);
+            const amountString = String(
+                info.tokenAmount.uiAmountString ??
+                    info.tokenAmount.uiAmount ??
+                    "0",
+            );
+            return {
+                mint: info.mint as string,
+                amount: Number(amountString),
+                amountString,
+                decimals: info.tokenAmount.decimals as number,
+                address: account.pubkey.toBase58(),
+                rawAmount,
+                programId: programId.toBase58(),
+            };
+        })
+        .filter((t) => BigInt(t.rawAmount) > BigInt(0));
 
-        // Resolve display identity (ticker + full name) for all tokens
-        const tokens: TokenInfo[] = await Promise.all(
-            nonZero.map(async (t) => {
-                const { symbol, name } = await resolveIdentity(t.mint);
-                return { ...t, symbol, name };
-            }),
-        );
+    // Resolve display identity (ticker + full name) for all tokens
+    const tokens: TokenInfo[] = await Promise.all(
+        nonZero.map(async (t) => {
+            const { symbol, name } = await resolveIdentity(t.mint);
+            return { ...t, symbol, name };
+        }),
+    );
 
-        return tokens;
-    } catch (e) {
-        console.error(
-            `[solana] Token fetch failed for program ${programId.toBase58()}:`,
-            e,
-        );
-        return [];
-    }
+    return tokens;
 }
 
 export async function getTokenAccounts(walletAddress: string) {

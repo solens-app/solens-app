@@ -174,10 +174,13 @@ function PortfolioView({
             <ConnectState onRequireAuth={onRequireAuth} />
           ) : loading && !portfolio ? (
             <SkeletonRows />
-          ) : !portfolio || (portfolio.solBalance === 0 && portfolio.tokens.length === 0) ? (
-            <EmptyState title="No tokens yet" subtitle="Fund this wallet to see your holdings here." />
+          ) : !portfolio ? (
+            <EmptyState title="Couldn’t load balances" subtitle="Try refreshing in a moment." />
           ) : (
             <>
+              {/* Always show the SOL row for a connected wallet, even at a zero
+                  balance — a funded-with-nothing wallet should still render its
+                  holdings, not collapse to an empty state. */}
               <TokenRow
                 symbol="SOL"
                 amountLabel={`${portfolio.solBalance.toFixed(4)} SOL`}
@@ -192,10 +195,16 @@ function PortfolioView({
                   usdValue={t.usdValue}
                 />
               ))}
-              {portfolio.tokens.length > 0 && tokenRows.length === 0 && (
+              {portfolio.tokens.length === 0 ? (
                 <div className="px-4 py-6 text-center text-sm text-text-secondary/70 sm:px-6">
-                  Only dust holdings — enable “Dust Tokens” to show them.
+                  No other tokens yet — swap or receive some to see them here.
                 </div>
+              ) : (
+                tokenRows.length === 0 && (
+                  <div className="px-4 py-6 text-center text-sm text-text-secondary/70 sm:px-6">
+                    Only dust holdings — enable “Dust Tokens” to show them.
+                  </div>
+                )
               )}
             </>
           )}
@@ -250,14 +259,6 @@ function PortfolioView({
       <section className="grid gap-6 sm:grid-cols-2">
         <LiquidityPositions positions={positions} loading={loading && !positions} hasWallet={Boolean(wallet)} />
         <PredictionPositions positions={predictions} loading={loading && !predictions} hasWallet={Boolean(wallet)} />
-        <PlaceholderCard
-          title="Perp positions"
-          subtitle="Drift perps integration coming soon."
-        />
-        <PlaceholderCard
-          title="Limit orders"
-          subtitle="Open limit orders will appear here."
-        />
       </section>
     </AppShell>
   );
@@ -358,15 +359,6 @@ function ConnectState({ onRequireAuth }: { onRequireAuth: () => void }) {
           Connect Wallet
         </button>
       )}
-    </div>
-  );
-}
-
-function PlaceholderCard({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="rounded-2xl bg-surface card-shadow">
-      <div className="border-b border-subtle px-5 py-3 text-sm font-semibold">{title}</div>
-      <div className="px-5 py-8 text-center text-sm text-text-secondary/70">{subtitle}</div>
     </div>
   );
 }

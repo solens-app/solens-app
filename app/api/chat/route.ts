@@ -1649,27 +1649,38 @@ export async function POST(request: NextRequest) {
                             break;
 
                         case "get_wallet_overview": {
-                            const [overview, liquidityPositions] =
-                                await Promise.all([
-                                    computeWalletUsd(
-                                        await getWalletOverview(walletAddress),
-                                    ),
-                                    // LP positions live outside the spot balances;
-                                    // best-effort so a lookup failure never breaks
-                                    // the portfolio card.
-                                    getAllUserPositions(walletAddress).catch(
-                                        () => [],
-                                    ),
-                                ]);
-                            portfolioView = buildPortfolioView(
-                                overview,
-                                walletAddress,
-                                liquidityPositions,
-                            );
-                            result = {
-                                ...overview,
-                                liquidityPositions,
-                            };
+                            try {
+                                const [overview, liquidityPositions] =
+                                    await Promise.all([
+                                        computeWalletUsd(
+                                            await getWalletOverview(
+                                                walletAddress,
+                                            ),
+                                        ),
+                                        // LP positions live outside the spot
+                                        // balances; best-effort so a lookup
+                                        // failure never breaks the portfolio card.
+                                        getAllUserPositions(walletAddress).catch(
+                                            () => [],
+                                        ),
+                                    ]);
+                                portfolioView = buildPortfolioView(
+                                    overview,
+                                    walletAddress,
+                                    liquidityPositions,
+                                );
+                                result = {
+                                    ...overview,
+                                    liquidityPositions,
+                                };
+                            } catch {
+                                // A balances read failed after retries. Surface a
+                                // retryable message rather than an empty wallet —
+                                // never imply the user holds nothing on an error.
+                                result = {
+                                    error: "Couldn't fetch your balances right now (RPC hiccup). Ask to show the portfolio again in a moment.",
+                                };
+                            }
                             break;
                         }
 

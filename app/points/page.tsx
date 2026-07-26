@@ -275,7 +275,7 @@ function InviteCard({ data }: { data: PointsState | null }) {
   const referralLink =
     typeof window !== "undefined"
       ? `${window.location.origin}/?ref=${code}`
-      : `https://solens.app/?ref=${code}`;
+      : `https://terminal.solens.app/?ref=${code}`;
 
   const copy = async (text: string) => {
     try {

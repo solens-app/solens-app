@@ -224,7 +224,7 @@ export default function Sidebar() {
                     <Icon.telegram className="h-5 w-5" />
                 </a>
                 <a
-                    href="https://solens.app"
+                    href="https://terminal.solens.app"
                     target="_blank"
                     rel="noreferrer"
                     className="transition-colors hover:text-text-primary"
@@ -302,7 +302,7 @@ export default function Sidebar() {
                     <a href="https://t.me/solens" target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="Telegram">
                         <Icon.telegram className="h-5 w-5" />
                     </a>
-                    <a href="https://solens.app" target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="Website">
+                    <a href="https://terminal.solens.app" target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="Website">
                         <Icon.globe className="h-5 w-5" />
                     </a>
                 </div>

@@ -88,4 +88,4 @@ The full list lives in `README.md`; the non-obvious ones for development:
 - `NEXT_PUBLIC_PRIVY_APP_ID` (browser) + `PRIVY_APP_SECRET` (server) — server secret is required for Telegram → Privy server signing.
 - `INTERNAL_API_BASE_URL` — set this if the Telegram webhook can't reach itself at `127.0.0.1:$PORT` (e.g. behind a reverse proxy on a different port).
 
-`next.config.ts` whitelists `solens.app` as a dev origin — update this if developing under a different public host.
+`next.config.ts` whitelists `terminal.solens.app` as a dev origin — update this if developing under a different public host. (`solens.app` is retired; it 308-redirects to `terminal.solens.app`.)

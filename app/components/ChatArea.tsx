@@ -1605,6 +1605,14 @@ function PortfolioCard({
                         </dd>
                     </div>
                 ))}
+
+                {/* Always account for tokens, even at zero — an empty wallet
+                    should say so rather than showing only a SOL row. */}
+                {portfolio.tokens.length === 0 && (
+                    <div className="py-2 text-xs text-text-secondary">
+                        No other tokens yet
+                    </div>
+                )}
             </dl>
 
             {/* Liquidity positions — funds deposited into Meteora pools that live

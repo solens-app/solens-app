@@ -1644,10 +1644,12 @@ export async function POST(request: NextRequest) {
                             break;
                         }
 
+                        // "Show my tokens" must render the same portfolio card as a
+                        // full overview. When this case returned bare token accounts
+                        // it set no card, and the prompt's "don't restate amounts in
+                        // text" rule then left the holdings invisible — the
+                        // intermittent "tokens are not showing" report.
                         case "get_token_accounts":
-                            result = await getTokenAccounts(walletAddress);
-                            break;
-
                         case "get_wallet_overview": {
                             try {
                                 const [overview, liquidityPositions] =

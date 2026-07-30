@@ -128,22 +128,32 @@ const navItems = [
     { label: "History", icon: Icon.history, href: "/history" },
 ] as const;
 
+const LANDING_URL = "https://solens.app";
+
 function Wordmark({ collapsed }: { collapsed: boolean }) {
     if (collapsed) {
         return (
-            <div className="flex h-[26px] w-full items-center justify-center">
+            <a
+                href={LANDING_URL}
+                aria-label="Solens home"
+                className="flex h-[26px] w-full items-center justify-center transition-opacity hover:opacity-80"
+            >
                 <span className="text-xl font-extrabold tracking-tight text-text-primary">
                     s
                 </span>
-            </div>
+            </a>
         );
     }
     return (
-        <span className="text-[22px] font-extrabold lowercase tracking-tight text-text-primary">
+        <a
+            href={LANDING_URL}
+            aria-label="Solens home"
+            className="text-[22px] font-extrabold lowercase tracking-tight text-text-primary transition-opacity hover:opacity-80"
+        >
             sol
             <span className="text-violet-400">e</span>
             ns
-        </span>
+        </a>
     );
 }
 
@@ -224,7 +234,7 @@ export default function Sidebar() {
                     <Icon.telegram className="h-5 w-5" />
                 </a>
                 <a
-                    href="https://terminal.solens.app"
+                    href={LANDING_URL}
                     target="_blank"
                     rel="noreferrer"
                     className="transition-colors hover:text-text-primary"
@@ -302,7 +312,7 @@ export default function Sidebar() {
                     <a href="https://t.me/solens" target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="Telegram">
                         <Icon.telegram className="h-5 w-5" />
                     </a>
-                    <a href="https://terminal.solens.app" target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="Website">
+                    <a href={LANDING_URL} target="_blank" rel="noreferrer" className="transition-colors hover:text-text-primary" aria-label="Website">
                         <Icon.globe className="h-5 w-5" />
                     </a>
                 </div>

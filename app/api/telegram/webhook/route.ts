@@ -48,11 +48,36 @@ interface ChatApiQuickReply {
   prompt: string;
 }
 
+interface ChatApiPortfolioToken {
+  mint: string;
+  symbol: string;
+  amountLabel: string;
+  usdLabel: string;
+}
+
+interface ChatApiPortfolioPosition {
+  poolAddress: string;
+  pairLabel: string;
+  amountLabel: string;
+  usdLabel: string;
+}
+
+interface ChatApiPortfolio {
+  walletAddress: string;
+  solBalanceLabel: string;
+  solUsdLabel: string;
+  tokens: ChatApiPortfolioToken[];
+  positions?: ChatApiPortfolioPosition[];
+  totalUsdLabel: string;
+  pricesIncomplete: boolean;
+}
+
 interface ChatApiResponse {
   message?: string;
   error?: string;
   action?: ChatApiAction | Record<string, unknown>;
   quickReplies?: ChatApiQuickReply[];
+  portfolio?: ChatApiPortfolio;
 }
 
 const MAX_HISTORY_MESSAGES = 20;
@@ -107,6 +132,45 @@ function stripMarkdownForFallback(text: string): string {
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1 ($2)")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/**
+ * The web app presents this information in a PortfolioCard. Telegram receives
+ * the same structured API response but cannot render that component, so turn
+ * it into a plain-text summary before sending it to the chat.
+ */
+function formatTelegramPortfolio(portfolio: ChatApiPortfolio): string {
+  const lines = [
+    "Portfolio",
+    `Total value: ${portfolio.totalUsdLabel}`,
+    "",
+    "Holdings",
+    `• SOL: ${portfolio.solBalanceLabel} (${portfolio.solUsdLabel})`,
+    ...portfolio.tokens.map(
+      (token) =>
+        `• ${token.symbol}: ${token.amountLabel} (${token.usdLabel})`
+    ),
+  ];
+
+  if (portfolio.tokens.length === 0) {
+    lines.push("• No other tokens yet");
+  }
+
+  if (portfolio.positions && portfolio.positions.length > 0) {
+    lines.push("", "Liquidity positions");
+    lines.push(
+      ...portfolio.positions.map(
+        (position) =>
+          `• ${position.pairLabel}: ${position.amountLabel} (${position.usdLabel})`
+      )
+    );
+  }
+
+  if (portfolio.pricesIncomplete) {
+    lines.push("", "Some token prices are unavailable, so the total is partial.");
+  }
+
+  return lines.join("\n");
 }
 
 function storeQuickReplies(chatId: number, quickReplies: ChatApiQuickReply[]) {
@@ -566,7 +630,15 @@ export async function POST(request: NextRequest) {
       { role: "assistant", content: reply },
     ]);
 
-    let finalReply = reply;
+    const portfolioSummary = chatApiResponse.portfolio
+      ? formatTelegramPortfolio(chatApiResponse.portfolio)
+      : null;
+    const isPortfolioIntro = /^here['’]s your portfolio:?$/i.test(reply.trim());
+    let finalReply = portfolioSummary
+      ? isPortfolioIntro
+        ? portfolioSummary
+        : `${reply}\n\n${portfolioSummary}`
+      : reply;
     if (chatApiResponse.action) {
       pendingOnchainActionByChat.set(chatId, {
         actionJson: JSON.stringify(chatApiResponse.action),

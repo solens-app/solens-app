@@ -83,6 +83,8 @@ const KNOWN_SYMBOLS: Record<string, string> = {
 export interface TokenIdentity {
     symbol: string | null;
     name: string | null;
+    /** Jupiter-hosted token icon, when one is available. */
+    logo: string | null;
 }
 
 // Resolved identities are cached for the process lifetime (a mint's symbol and
@@ -91,16 +93,28 @@ export interface TokenIdentity {
 const identityCache = new Map<string, TokenIdentity>();
 
 async function resolveIdentity(mint: string): Promise<TokenIdentity> {
-    if (KNOWN_SYMBOLS[mint]) {
-        return { symbol: KNOWN_SYMBOLS[mint], name: null };
-    }
     const cached = identityCache.get(mint);
     if (cached) return cached;
 
-    // Fallback: look up via Jupiter's token search on the keyless lite host.
-    // The keyed api.jup.ag host 401s without the swap key, which is why
-    // unknown tokens previously fell through to showing their raw mint.
-    let identity: TokenIdentity = { symbol: null, name: null };
+    if (KNOWN_SYMBOLS[mint]) {
+        const identity = {
+            symbol: KNOWN_SYMBOLS[mint],
+            name: null,
+            logo: `https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${mint}/logo.png`,
+        };
+        identityCache.set(mint, identity);
+        return identity;
+    }
+
+    // Look up via Jupiter's token search on the keyless lite host. Besides a
+    // display name, this supplies the logo shown in the web portfolio. The
+    // keyed api.jup.ag host 401s without the swap key, which is why this uses
+    // the lite host instead.
+    let identity: TokenIdentity = {
+        symbol: null,
+        name: null,
+        logo: null,
+    };
     try {
         const res = await fetch(
             `https://lite-api.jup.ag/tokens/v2/search?query=${encodeURIComponent(mint)}`,
@@ -117,6 +131,10 @@ async function resolveIdentity(mint: string): Promise<TokenIdentity> {
                         name:
                             typeof match.name === "string" && match.name.trim()
                                 ? (match.name as string)
+                                : null,
+                        logo:
+                            typeof match.icon === "string" && match.icon.trim()
+                                ? match.icon
                                 : null,
                     };
                 }
@@ -151,6 +169,8 @@ interface TokenInfo {
     symbol: string | null;
     /** Full token name (e.g. "Elsa on Solana"), when Jupiter knows the mint. */
     name: string | null;
+    /** Jupiter-hosted token icon, when one is available. */
+    logo: string | null;
     amount: number;
     amountString: string;
     decimals: number;
@@ -201,8 +221,8 @@ async function fetchTokensForProgram(
     // Resolve display identity (ticker + full name) for all tokens
     const tokens: TokenInfo[] = await Promise.all(
         nonZero.map(async (t) => {
-            const { symbol, name } = await resolveIdentity(t.mint);
-            return { ...t, symbol, name };
+            const { symbol, name, logo } = await resolveIdentity(t.mint);
+            return { ...t, symbol, name, logo };
         }),
     );
 

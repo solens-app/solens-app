@@ -18,6 +18,7 @@ interface PortfolioTokenRow {
     symbol: string;
     /** Full token name, when it adds anything over the ticker. */
     name?: string | null;
+    logo: string | null;
     mint: string;
     amount: number;
     amountLabel: string;
@@ -37,6 +38,7 @@ interface PortfolioView {
     walletAddress: string;
     solBalance: number;
     solBalanceLabel: string;
+    solLogo: string;
     solUsdValue: number | null;
     solUsdLabel: string;
     tokenCount: number;
@@ -1558,10 +1560,13 @@ function PortfolioCard({
             {/* Holdings */}
             <dl className="divide-y divide-subtle/60 border-t border-subtle px-4 py-1 text-sm">
                 <div className="flex items-center justify-between gap-3 py-2">
-                    <dt className="flex flex-col">
-                        <span className="text-text-primary">SOL</span>
-                        <span className="text-xs text-text-secondary">
-                            {portfolio.solBalanceLabel}
+                    <dt className="flex min-w-0 items-center gap-2.5">
+                        <TokenMark symbol="SOL" logo={portfolio.solLogo} />
+                        <span className="flex flex-col">
+                            <span className="text-text-primary">SOL</span>
+                            <span className="text-xs text-text-secondary">
+                                {portfolio.solBalanceLabel}
+                            </span>
                         </span>
                     </dt>
                     <dd className="text-right text-text-primary">
@@ -1574,17 +1579,20 @@ function PortfolioCard({
                         key={t.mint}
                         className="flex items-center justify-between gap-3 py-2"
                     >
-                        <dt className="flex min-w-0 flex-col">
-                            <span className="truncate text-text-primary">
-                                {t.symbol}
-                                {t.name && (
-                                    <span className="ml-1.5 text-xs text-text-secondary">
-                                        {t.name}
-                                    </span>
-                                )}
-                            </span>
-                            <span className="text-xs text-text-secondary">
-                                {t.amountLabel}
+                        <dt className="flex min-w-0 items-center gap-2.5">
+                            <TokenMark symbol={t.symbol} logo={t.logo} />
+                            <span className="flex min-w-0 flex-col">
+                                <span className="truncate text-text-primary">
+                                    {t.symbol}
+                                    {t.name && (
+                                        <span className="ml-1.5 text-xs text-text-secondary">
+                                            {t.name}
+                                        </span>
+                                    )}
+                                </span>
+                                <span className="text-xs text-text-secondary">
+                                    {t.amountLabel}
+                                </span>
                             </span>
                         </dt>
                         <dd className="flex items-center gap-2">
@@ -1669,5 +1677,44 @@ function PortfolioCard({
                 </p>
             )}
         </div>
+    );
+}
+
+function TokenMark({
+    symbol,
+    logo,
+}: {
+    symbol: string;
+    logo?: string | null;
+}) {
+    const hue = [...symbol].reduce(
+        (value, character) => (value * 31 + character.charCodeAt(0)) % 360,
+        7,
+    );
+    const initials =
+        symbol.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
+
+    return (
+        <span
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[9px] font-bold text-on-brand"
+            style={{
+                backgroundImage: `linear-gradient(135deg, hsl(${hue} 70% 55%), hsl(${(hue + 40) % 360} 70% 45%))`,
+            }}
+        >
+            {initials}
+            {logo && (
+                // eslint-disable-next-line @next/next/no-img-element -- Jupiter returns icons from token-specific CDNs.
+                <img
+                    src={logo}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="col-start-1 row-start-1 h-full w-full rounded-full object-cover"
+                    onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                    }}
+                />
+            )}
+        </span>
     );
 }

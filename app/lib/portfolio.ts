@@ -2,6 +2,8 @@ import { distinctTokenName, getWalletOverview } from "@/app/lib/solana";
 import { getTokenPrices } from "@/app/lib/jupiter";
 
 const NATIVE_SOL_MINT = "So11111111111111111111111111111111111111112";
+const NATIVE_SOL_LOGO =
+    "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
 
 export interface PortfolioToken {
     mint: string;
@@ -9,6 +11,7 @@ export interface PortfolioToken {
     symbol: string;
     /** Full token name, when it adds anything over the ticker. */
     name: string | null;
+    logo: string | null;
     amount: number;
     amountLabel: string;
     usdPrice: number | null;
@@ -19,6 +22,7 @@ export interface Portfolio {
     address: string;
     solBalance: number;
     solBalanceLabel: string;
+    solLogo: string;
     solUsdValue: number | null;
     /** SOL plus all priced tokens. null only when SOL price is missing. */
     totalUsdValue: number | null;
@@ -62,6 +66,7 @@ export async function getPortfolio(walletAddress: string): Promise<Portfolio> {
             mint: t.mint,
             symbol: t.symbol || shortMint(t.mint),
             name: distinctTokenName(t.symbol, t.name),
+            logo: t.logo,
             amount: t.amount,
             amountLabel: String(t.amountString ?? t.amount),
             usdPrice,
@@ -82,6 +87,7 @@ export async function getPortfolio(walletAddress: string): Promise<Portfolio> {
         address: walletAddress,
         solBalance: overview.solBalance,
         solBalanceLabel: `${overview.solBalance.toFixed(4)} SOL`,
+        solLogo: NATIVE_SOL_LOGO,
         solUsdValue,
         totalUsdValue: solPrice === null ? null : knownUsdValue,
         knownUsdValue,

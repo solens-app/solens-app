@@ -289,6 +289,7 @@ interface PortfolioTokenRow {
     symbol: string;
     /** Full token name, when it adds anything over the ticker. */
     name: string | null;
+    logo: string | null;
     mint: string;
     amount: number;
     amountLabel: string;
@@ -308,6 +309,7 @@ interface PortfolioView {
     walletAddress: string;
     solBalance: number;
     solBalanceLabel: string;
+    solLogo: string;
     solUsdValue: number | null;
     solUsdLabel: string;
     tokenCount: number;
@@ -372,6 +374,7 @@ function buildPortfolioView(
     const tokens: PortfolioTokenRow[] = overview.tokens.map((t) => ({
         symbol: t.symbol || `${t.mint.slice(0, 4)}…${t.mint.slice(-4)}`,
         name: distinctTokenName(t.symbol, t.name),
+        logo: t.logo,
         mint: t.mint,
         amount: t.amount,
         amountLabel: `${t.amountString ?? t.amount}`,
@@ -417,6 +420,8 @@ function buildPortfolioView(
         walletAddress,
         solBalance: overview.solBalance,
         solBalanceLabel: `${overview.solBalance.toFixed(4)} SOL`,
+        solLogo:
+            "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png",
         solUsdValue: overview.solUsdValue,
         solUsdLabel: usd(overview.solUsdValue),
         tokenCount: overview.tokenCount,

@@ -183,6 +183,7 @@ function PortfolioView({
                   holdings, not collapse to an empty state. */}
               <TokenRow
                 symbol="SOL"
+                logo={portfolio.solLogo}
                 amountLabel={`${portfolio.solBalance.toFixed(4)} SOL`}
                 usdValue={portfolio.solUsdValue}
               />
@@ -191,6 +192,7 @@ function PortfolioView({
                   key={t.mint}
                   symbol={t.symbol}
                   name={t.name}
+                  logo={t.logo}
                   amountLabel={`${formatAmount(t.amount)} ${t.symbol}`}
                   usdValue={t.usdValue}
                 />
@@ -271,18 +273,20 @@ function PortfolioView({
 function TokenRow({
   symbol,
   name,
+  logo,
   amountLabel,
   usdValue,
 }: {
   symbol: string;
   name?: string | null;
+  logo?: string | null;
   amountLabel: string;
   usdValue: number | null;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 border-t border-subtle px-4 py-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
-        <TokenBadge symbol={symbol} />
+        <TokenBadge symbol={symbol} logo={logo} />
         <div className="min-w-0">
           <div className="truncate font-medium">
             {symbol}
@@ -300,7 +304,7 @@ function TokenRow({
   );
 }
 
-function TokenBadge({ symbol }: { symbol: string }) {
+function TokenBadge({ symbol, logo }: { symbol: string; logo?: string | null }) {
   // Deterministic violet-tinted gradient seeded by the symbol so each token has
   // a stable colour without needing a logo fetch.
   const hue = [...symbol].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
@@ -312,6 +316,19 @@ function TokenBadge({ symbol }: { symbol: string }) {
       }}
     >
       {symbol.replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "?"}
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element -- Jupiter returns icons from token-specific CDNs.
+        <img
+          src={logo}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="col-start-1 row-start-1 h-full w-full rounded-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      )}
     </span>
   );
 }

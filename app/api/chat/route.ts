@@ -1177,7 +1177,7 @@ interface ChatMessage {
 // Response type that can include an action for the frontend
 interface ChatResponse {
     message: string;
-    quickReplies?: { label: string; prompt: string }[];
+    quickReplies?: { label: string; prompt: string; group?: string }[];
     portfolio?: PortfolioView;
     action?:
         | {
@@ -1297,8 +1297,8 @@ interface ChatResponse {
 
 function generateQuickReplies(
     results: { name: string; result: unknown }[],
-): { label: string; prompt: string }[] {
-    const replies: { label: string; prompt: string }[] = [];
+): { label: string; prompt: string; group?: string }[] {
+    const replies: { label: string; prompt: string; group?: string }[] = [];
 
     for (const { name, result } of results) {
         const data = result as Record<string, unknown>;
@@ -1344,17 +1344,19 @@ function generateQuickReplies(
                     noPrice: string;
                 }[];
             }[];
-            for (const event of events.slice(0, 4)) {
+            for (const event of events.slice(0, 3)) {
                 for (const market of event.markets.slice(0, 2)) {
                     const title =
                         market.title.length > 50
                             ? market.title.slice(0, 47) + "..."
                             : market.title;
                     replies.push({
+                        group: event.title,
                         label: `YES ${market.yesPrice} · ${title}`,
                         prompt: `Bet YES on market ${market.marketId}`,
                     });
                     replies.push({
+                        group: event.title,
                         label: `NO ${market.noPrice} · ${title}`,
                         prompt: `Bet NO on market ${market.marketId}`,
                     });
@@ -3396,8 +3398,21 @@ export async function POST(request: NextRequest) {
                                         Date.now() / 1000,
                                     );
                                     const MIN_TIME_LEFT = 30 * 60; // 30 minutes
+                                    // A market pinned at $0.00/$1.00 is already decided —
+                                    // there is no bet left to place, so hide it.
+                                    const MIN_PRICE = 0.05;
+                                    const MAX_PRICE = 0.95;
+                                    const MAX_MARKETS_PER_EVENT = 5;
+                                    const yesPrice = (m: {
+                                        pricing: {
+                                            buyYesPriceUsd: number | null;
+                                        };
+                                    }) =>
+                                        (m.pricing.buyYesPriceUsd ?? 0) /
+                                        1_000_000;
 
                                     const mapped = events
+                                        .filter((e) => e.isActive !== false)
                                         .map((e) => ({
                                             eventId: e.eventId,
                                             title: e.metadata.title,
@@ -3412,9 +3427,26 @@ export async function POST(request: NextRequest) {
                                                 .filter(
                                                     (m) =>
                                                         m.status === "open" &&
+                                                        m.result === null &&
                                                         m.closeTime - nowSec >
-                                                            MIN_TIME_LEFT,
+                                                            MIN_TIME_LEFT &&
+                                                        yesPrice(m) >=
+                                                            MIN_PRICE &&
+                                                        yesPrice(m) <=
+                                                            MAX_PRICE,
                                                 )
+                                                // Closest to 50/50 first — those are the
+                                                // ones still worth betting on.
+                                                .sort(
+                                                    (a, b) =>
+                                                        Math.abs(
+                                                            yesPrice(a) - 0.5,
+                                                        ) -
+                                                        Math.abs(
+                                                            yesPrice(b) - 0.5,
+                                                        ),
+                                                )
+                                                .slice(0, MAX_MARKETS_PER_EVENT)
                                                 .map((m) => ({
                                                     marketId: m.marketId, // USE THIS EXACT ID for buy_prediction
                                                     title:
@@ -3444,12 +3476,12 @@ export async function POST(request: NextRequest) {
                                     if (mapped.length === 0) {
                                         result = {
                                             message:
-                                                "No open prediction markets found. All matching markets are closed or expired.",
+                                                "No live prediction markets found. All matching markets are closed, expired, or already decided.",
                                         };
                                     } else {
                                         result = {
                                             events: mapped,
-                                            _note: "IMPORTANT: Use the exact marketId string (e.g. POLY-1928733-0) when calling buy_prediction. Do NOT use event titles or numbers.",
+                                            _note: "Every market listed here is live and still tradeable. List each event with ONLY its own markets underneath it, and never invent or carry over markets from another event. IMPORTANT: Use the exact marketId string (e.g. POLY-1928733-0) when calling buy_prediction. Do NOT use event titles or numbers.",
                                         };
                                     }
                                 }

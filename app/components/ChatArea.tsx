@@ -12,6 +12,17 @@ import {
 interface QuickReply {
     label: string;
     prompt: string;
+    group?: string;
+}
+
+/** Keeps grouped replies (e.g. per prediction event) under their own heading. */
+function groupQuickReplies(replies: QuickReply[]): [string, QuickReply[]][] {
+    const groups = new Map<string, QuickReply[]>();
+    for (const qr of replies) {
+        const key = qr.group ?? "";
+        groups.set(key, [...(groups.get(key) ?? []), qr]);
+    }
+    return [...groups];
 }
 
 interface PortfolioTokenRow {
@@ -1276,18 +1287,40 @@ export default function ChatArea() {
 
                                 {msg.quickReplies &&
                                     msg.quickReplies.length > 0 && (
-                                        <div className="ml-[38px] mt-2.5 flex max-w-[82%] flex-wrap gap-2">
-                                            {msg.quickReplies.map((qr, i) => (
-                                                <button
-                                                    key={i}
-                                                    onClick={() =>
-                                                        handleSend(qr.prompt)
-                                                    }
-                                                    disabled={isLoading}
-                                                    className="rounded-lg border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-all hover:border-violet-300 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                        <div className="ml-[38px] mt-2.5 flex max-w-[82%] flex-col gap-3">
+                                            {groupQuickReplies(
+                                                msg.quickReplies,
+                                            ).map(([group, replies]) => (
+                                                <div
+                                                    key={group}
+                                                    className="flex flex-col gap-1.5"
                                                 >
-                                                    {qr.label}
-                                                </button>
+                                                    {group && (
+                                                        <span className="text-[11px] font-medium text-text-secondary/70">
+                                                            {group}
+                                                        </span>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {replies.map(
+                                                            (qr, i) => (
+                                                                <button
+                                                                    key={i}
+                                                                    onClick={() =>
+                                                                        handleSend(
+                                                                            qr.prompt,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        isLoading
+                                                                    }
+                                                                    className="rounded-lg border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-all hover:border-violet-300 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                                                >
+                                                                    {qr.label}
+                                                                </button>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     )}

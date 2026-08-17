@@ -46,6 +46,8 @@ interface ChatApiAction {
 interface ChatApiQuickReply {
   label: string;
   prompt: string;
+  /** When set, this reply belongs under its own message (e.g. one per prediction event). */
+  group?: string;
 }
 
 interface ChatApiPortfolioToken {
@@ -83,6 +85,7 @@ interface ChatApiResponse {
 const MAX_HISTORY_MESSAGES = 20;
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
 const TELEGRAM_SAFE_MESSAGE_LENGTH = 3800;
+const MAX_QUICK_REPLIES = 12;
 const ACTION_CONFIRM_CALLBACK = "act:confirm";
 const ACTION_CANCEL_CALLBACK = "act:cancel";
 const chatHistory = new Map<number, ChatMessage[]>();
@@ -175,12 +178,22 @@ function formatTelegramPortfolio(portfolio: ChatApiPortfolio): string {
 
 function storeQuickReplies(chatId: number, quickReplies: ChatApiQuickReply[]) {
   const prompts = new Map<string, string>();
-  for (const qr of quickReplies.slice(0, 8)) {
+  const tokens: string[] = [];
+  for (const qr of quickReplies) {
     const token = `qr:${Date.now().toString(36)}:${(quickReplyCounter++).toString(36)}`;
     prompts.set(token, qr.prompt);
+    tokens.push(token);
   }
   quickReplyPrompts.set(chatId, prompts);
-  return prompts;
+  return tokens;
+}
+
+/**
+ * Event titles contain literal underscores ("Bitcoin above ___ on August 18?"),
+ * which Telegram's legacy Markdown parser rejects as unbalanced entities.
+ */
+function escapeTelegramMarkdown(text: string): string {
+  return text.replace(/[_*`[]/g, "\\$&");
 }
 
 function resolveCallbackPrompt(chatId: number, callbackData: string): string {
@@ -276,13 +289,24 @@ async function sendTelegramQuickReplies(
     includeActionButtons?: boolean;
   }
 ) {
-  const promptMap = storeQuickReplies(chatId, quickReplies);
-  const buttons: Array<
-    Array<{ text: string; callback_data?: string; url?: string }>
-  > = [...promptMap.entries()].map(([token, prompt]) => {
-    const label = quickReplies.find((q) => q.prompt === prompt)?.label ?? "Select";
-    return [{ text: label.slice(0, 48), callback_data: token.slice(0, 64) }];
+  const capped = quickReplies.slice(0, MAX_QUICK_REPLIES);
+  const tokens = storeQuickReplies(chatId, capped);
+
+  // Grouped replies get their own message so the buttons sit directly under the
+  // thing they belong to (one message per prediction event).
+  const byGroup = new Map<
+    string,
+    Array<Array<{ text: string; callback_data?: string; url?: string }>>
+  >();
+  capped.forEach((qr, i) => {
+    const rows = byGroup.get(qr.group ?? "") ?? [];
+    rows.push([{ text: qr.label.slice(0, 48), callback_data: tokens[i].slice(0, 64) }]);
+    byGroup.set(qr.group ?? "", rows);
   });
+
+  const buttons = byGroup.get("") ?? [];
+  byGroup.delete("");
+
   if (options?.actionButtons) {
     buttons.push(...options.actionButtons);
   } else if (options?.includeActionButtons) {
@@ -292,9 +316,17 @@ async function sendTelegramQuickReplies(
     ]);
   }
 
-  await sendTelegramMessage(chatId, text, {
-    replyMarkup: { inline_keyboard: buttons },
-  });
+  await sendTelegramMessage(
+    chatId,
+    text,
+    buttons.length > 0 ? { replyMarkup: { inline_keyboard: buttons } } : undefined
+  );
+
+  for (const [group, rows] of byGroup) {
+    await sendTelegramMessage(chatId, `*${escapeTelegramMarkdown(group)}*`, {
+      replyMarkup: { inline_keyboard: rows },
+    });
+  }
 }
 
 async function sendTelegramChatAction(chatId: number, action: "typing" = "typing") {

@@ -189,11 +189,15 @@ function storeQuickReplies(chatId: number, quickReplies: ChatApiQuickReply[]) {
 }
 
 /**
- * Event titles contain literal underscores ("Bitcoin above ___ on August 18?"),
- * which Telegram's legacy Markdown parser rejects as unbalanced entities.
+ * Event titles contain literal underscores ("Bitcoin above ___ on August 19?").
+ * Telegram's legacy Markdown rejects those as unbalanced entities and has no
+ * backslash escape, so group headers are sent as HTML, where escaping is exact.
  */
-function escapeTelegramMarkdown(text: string): string {
-  return text.replace(/[_*`[]/g, "\\$&");
+function escapeTelegramHtml(text: string): string {
+  return text.replace(
+    /[&<>]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!
+  );
 }
 
 function resolveCallbackPrompt(chatId: number, callbackData: string): string {
@@ -228,7 +232,7 @@ function internalApiBaseUrl(): string {
 async function sendTelegramMessage(
   chatId: number,
   text: string,
-  options?: { replyMarkup?: unknown }
+  options?: { replyMarkup?: unknown; parseMode?: "Markdown" | "HTML" }
 ) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
@@ -248,7 +252,7 @@ async function sendTelegramMessage(
       body: JSON.stringify({
         chat_id: chatId,
         text: safeText,
-        parse_mode: "Markdown",
+        parse_mode: options?.parseMode ?? "Markdown",
         disable_web_page_preview: true,
         ...(options?.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
       }),
@@ -300,7 +304,12 @@ async function sendTelegramQuickReplies(
   >();
   capped.forEach((qr, i) => {
     const rows = byGroup.get(qr.group ?? "") ?? [];
-    rows.push([{ text: qr.label.slice(0, 48), callback_data: tokens[i].slice(0, 64) }]);
+    const button = { text: qr.label.slice(0, 48), callback_data: tokens[i].slice(0, 64) };
+    // Grouped replies arrive as YES/NO pairs per market; keeping a pair on one
+    // row shows them as two sides of one market instead of two separate options.
+    const last = rows[rows.length - 1];
+    if (qr.group && last && last.length === 1) last.push(button);
+    else rows.push([button]);
     byGroup.set(qr.group ?? "", rows);
   });
 
@@ -323,7 +332,8 @@ async function sendTelegramQuickReplies(
   );
 
   for (const [group, rows] of byGroup) {
-    await sendTelegramMessage(chatId, `*${escapeTelegramMarkdown(group)}*`, {
+    await sendTelegramMessage(chatId, `<b>${escapeTelegramHtml(group)}</b>`, {
+      parseMode: "HTML",
       replyMarkup: { inline_keyboard: rows },
     });
   }

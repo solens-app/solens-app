@@ -529,6 +529,7 @@ When helping with Bags token launches:
 When helping with prediction markets:
 - Use search_prediction_events to find events by keyword or browse by category (crypto, sports, politics, esports, culture, economics, tech)
 - Show event titles, market prices (YES/NO), and implied probabilities
+- ALWAYS show each event's close date. Different events reuse the SAME market titles (e.g. "↑ 70,000" exists under "Bitcoin hit in 2026", "in August", and "August 17-23" at completely different prices) and only differ by when they resolve, so a list without close dates reads as the same prediction repeated.
 - CRITICAL: Each market has a unique marketId (e.g. "POLY-1928733-0"). You MUST pass the EXACT marketId from the search results to buy_prediction. NEVER use event titles, numbers, or slugs as the marketId.
 - To place a bet: use buy_prediction with the exact marketId string, side (YES or NO), and amountUsd (minimum $5). Bets are paid with USDC or jupUSD and the backend automatically uses whichever the user has enough of (USDC preferred), so never tell the user they lack USDC without accounting for jupUSD.
 - IMPORTANT — bet sizing: pass the EXACT dollar amount the user asked for as amountUsd (e.g. "bet $25 NO" → amountUsd=25). Do NOT shrink it toward the minimum. If the user does not state an amount, ASK them how much they want to bet (in USD) — never silently default to $5 (the minimum). There is no maximum beyond the user's stablecoin balance.
@@ -3419,7 +3420,7 @@ export async function POST(request: NextRequest) {
                                             subtitle: e.metadata.subtitle,
                                             category: e.category,
                                             isLive: e.isLive,
-                                            closeTime: e.metadata.closeTime,
+                                            closesAt: e.metadata.closeTime,
                                             volume: microUsdToDisplay(
                                                 e.volumeUsd,
                                             ),
@@ -3481,7 +3482,7 @@ export async function POST(request: NextRequest) {
                                     } else {
                                         result = {
                                             events: mapped,
-                                            _note: "Every market listed here is live and still tradeable. List each event with ONLY its own markets underneath it, and never invent or carry over markets from another event. IMPORTANT: Use the exact marketId string (e.g. POLY-1928733-0) when calling buy_prediction. Do NOT use event titles or numbers.",
+                                            _note: "Every market listed here is live and still tradeable. Different events reuse identical market titles at different prices because they resolve on different dates, so ALWAYS print each event's closesAt alongside its title — without it the list looks like the same prediction repeated. List each event with ONLY its own markets underneath it, and never invent or carry over markets from another event. IMPORTANT: Use the exact marketId string (e.g. POLY-1928733-0) when calling buy_prediction. Do NOT use event titles or numbers.",
                                         };
                                     }
                                 }
